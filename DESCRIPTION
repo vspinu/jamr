@@ -1,10 +1,15 @@
 Package: jammer
-Title: What the Package Does (one line, title case)
+Title: Fast serialization with cereal C++ library.
 Version: 0.0.0.9000
-Authors@R: person("First", "Last", email = "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
-Depends: R (>= 3.2.4)
-License: What license is it under?
+Authors@R: person("Vitalie", "Spinu", email = "spinuvit@gmail.com", role = c("aut", "cre"))
+Description: Fast and transparent serelization of R objects based on cereal C++ library.
+Depends: R (>= 3.1.0)
+Imports: Rcpp
+LinkingTo: Rcpp, RcppEigen
+Suggests: knitr, prettydoc
+URL: https://github.com/vspinu/jammer
+BugReports: https://github.com/vspinu/jammer/issues
+License:  GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
 Suggests: testthat
