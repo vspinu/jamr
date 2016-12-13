@@ -1,0 +1,5 @@
+
+
+arrow layout: https://github.com/apache/arrow/blob/master/format/Layout.md
+
+ https://capnproto.org/index.html
