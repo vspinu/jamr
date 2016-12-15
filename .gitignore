@@ -3,3 +3,8 @@
 .RData
 
 tmp*
+TAGS
+*~
+
+.Rprofile
+data/

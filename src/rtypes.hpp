@@ -6,37 +6,26 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <Rcpp.h>
 using namespace Rcpp;
 
-enum RType {
-  R_LGL,
-  R_INT,
-  R_DBL,
-  R_CHR,
-  R_RAW,
-  R_FACTOR,
-  R_DATE,
-  R_DATETIME,
-  R_TIME
-};
-
-RType Jam2RType (JamElType::type jtype) {
+SEXPTYPE Jam2SexpType (JamElType::type jtype) {
   switch(jtype) {
    case JamElType::BOOL:
-     return R_LGL;
+     return LGLSXP;
    case JamElType::BYTE:
    case JamElType::SHORT:
    case JamElType::INT:
    case JamElType::UBYTE:
    case JamElType::USHORT:
    case JamElType::UINT:
-     return R_INT;
+     return INTSXP;
    case JamElType::LONG:
    case JamElType::ULONG:
    case JamElType::FLOAT:
    case JamElType::DOUBLE:
-     return R_DBL;
+     return REALSXP;
      // case JamElType::UTF8:
      //   return R_CHR;
      // case JamElType::BINARY:
@@ -45,59 +34,65 @@ RType Jam2RType (JamElType::type jtype) {
   throw std::runtime_error("Invalid JamElType");
 }
 
-JamElType::type Sexp2JamType (SEXPTYPE stype) {
+JamElType::type Sexp2JamElType (SEXPTYPE stype) {
   switch(stype) {
-    // NILSXP	  /* nil = NULL */
-   case LGLSXP:  return JamElType::UBYTE;
-   case INTSXP:  return JamElType::INT;	 
+   case NILSXP:	 return JamElType::NIL;
+   case LGLSXP:  return JamElType::BOOL;
+   case INTSXP:  return JamElType::INT;
    case REALSXP: return JamElType::DOUBLE;
    case STRSXP:  return JamElType::UTF8;
    case VECSXP:  return JamElType::UNDEFINED;
+   default:      return JamElType::UNSUPORTED;
   }
-  stop("Serialization of SEXPTYPE %d is not supported", stype);
 }
 
-SEXPTYPE RType2SexpType(RType rtype) {
-  switch(rtype) {
-   case R_LGL:      return LGLSXP;
-   case R_INT:      return INTSXP;
-   case R_DBL:      return REALSXP;
-   case R_CHR:      return STRSXP;
-   case R_RAW:      return VECSXP;
-   case R_FACTOR:   return INTSXP;
-   case R_DATE:     return INTSXP;
-   case R_DATETIME: return REALSXP;
-   case R_TIME:     return REALSXP;
+JamElType::type best_int_type(SEXP x){
+  if (TYPEOF(x) != INTSXP) stop("x must be of INTSXP type");
+  int M = std::numeric_limits<int>::min();
+  int m = std::numeric_limits<int>::max();
+  if (Rf_inherits(x, "factor")) {
+    M = Rf_nlevels(x);
+    m = 0;
+  } else {
+    int* pt = INTEGER(x);
+    size_t N = XLENGTH(x);
+    for (int i = 0; i < N; i++) {
+      int v = pt[i];
+      if (v != NA_INTEGER){
+        M = std::max(M, pt[i]);
+        m = std::min(m, pt[i]);
+      }
+    }
   }
-  throw std::runtime_error("Invalid RType");
-}
-
-template <class SrcType, class DestType>
-void copyRecast(const SrcType* src, DestType* dest, size_t n) {
-  auto recast = reinterpret_cast<const SrcType*>(src);
-  std::copy(&recast[0], &recast[0] + n, dest);
+  if (M >= MAX_USHORT || m <= MIN_SHORT) return JamElType::INT;
+  if (M >= MAX_UBYTE && m >= 0) return JamElType::USHORT;
+  if (M >= MAX_SHORT) return JamElType::INT; // m <= MIN_SHORT
+  if (M >= MAX_UBYTE || m <= MIN_BYTE) return JamElType::SHORT;
+  if (M >= MAX_BYTE && m >= 0) return JamElType::UBYTE;
+  if (M >= MAX_BYTE) return JamElType::SHORT;
+  return JamElType::BYTE;
 }
 
 // default implementation for numeric types
-template <class T>
-SEXP toSEXP(const std::vector<T>& vec, RType rtype) {
+template <class BinT>
+SEXP toSEXP(const std::vector<BinT>& vec, SEXPTYPE stype) {
 
   size_t n = vec.size();
-  SEXP out = PROTECT(Rf_allocVector(RType2SexpType(rtype), n));
+  SEXP out = PROTECT(Rf_allocVector(stype, n));
 
-  const T* pv = vec.data();
+  const BinT* pv = vec.data();
 
-  switch(rtype) {
-   case R_LGL:
+  switch(stype) {
+   case LGLSXP:
      break;
-   case R_INT:
-     copyRecast<T, int>(pv, INTEGER(out), n);
+   case INTSXP:
+     std::copy(vec.begin(), vec.end(), INTEGER(out)); 
      break;
-   case R_DBL:
-     copyRecast<T, double>(pv, REAL(out), n);
+   case REALSXP:
+     std::copy(vec.begin(), vec.end(), REAL(out)); 
      break;
    default:
-     stop("Not implemented");
+     stop("Conversion to SEXP of this type is not implemented");
   }
   
   UNPROTECT(1);
@@ -107,12 +102,12 @@ SEXP toSEXP(const std::vector<T>& vec, RType rtype) {
 
 // specialization for strings
 template <>
-SEXP toSEXP(const std::vector<std::string>& vec, RType rtype) {
+SEXP toSEXP(const std::vector<std::string>& vec, SEXPTYPE stype) {
 
   size_t n = vec.size();
-  SEXP out = PROTECT(Rf_allocVector(RType2SexpType(rtype), n));
+  SEXP out = PROTECT(Rf_allocVector(stype, n));
 
-  if (rtype != R_CHR) stop("Jammer strings can be only converted to R character vector.");
+  if (stype != STRSXP) stop("Jammer strings can be only converted to R character vector.");
 
   for (int i = 0; i < n; ++i) {
     std::string istr = vec[i];
