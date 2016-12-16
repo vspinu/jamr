@@ -1,0 +1,11 @@
+# CXX_STD = CXX11
+PKG_CPPFLAGS = -I.
+PKG_LIBS = -L.
+
+# $(SHLIB): libjam.a
+
+# libjam.a: $(LIBJAM)
+# 	$(AR) rcs libjam.a $(LIBJAM)
+
+# clean:
+# 	rm -f *.o

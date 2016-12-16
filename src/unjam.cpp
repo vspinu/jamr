@@ -1,5 +1,6 @@
-// [[Rcpp::plugins("cpp11")]]
-// [[Rcpp::depends(Rcereal)]]
+
+// Rcpp::plugins("cpp11")]]
+// Rcpp::depends(Rcereal)]]
 
 #include "jamtypes.hpp"
 #include "rtypes.hpp"
@@ -12,23 +13,23 @@
 SEXP unjam_sexp(cereal::BinaryInputArchive& bin);
 SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head);
 
-SEXP unjam_bool_vec_tail(cereal::BinaryInputArchive& bin){
+SEXP unjam_bool_vec_tail(cereal::BinaryInputArchive& bin) {
   std::vector<ubyte> bytes;
   bin(bytes);
   size_t n = bytes.size();
-  size_t N = (bytes[n] & 12 == 12) ? n*2 - 1 : n*2; // if last 2 bits 11, it's no value
+  size_t N = ((bytes[n-1] & 12) == 12) ? n*2 - 1 : n*2; // last 2 bits = 11, means no value
   SEXP out = PROTECT(Rf_allocVector(LGLSXP, N));
   int* pt = LOGICAL(out);
   for (size_t i = 0; i < N; i++) {
     std::div_t div = std::div(i, 2);
     if (div.rem) {
-      // upper bits
-      if (bytes[div.quot] & 2) pt[i] = NA_INTEGER;
-      else pt[i] = bytes[div.quot] & 3;
-    } else {
       // lower bits
       if (bytes[div.quot] & 8) pt[i] = NA_INTEGER;
-      else pt[i] = bytes[div.quot] & 12;
+      else pt[i] = (bytes[div.quot] & 12) != 0;
+    } else {
+      // upper bits
+      if (bytes[div.quot] & 2) pt[i] = NA_INTEGER;
+      else pt[i] = (bytes[div.quot] & 3) != 0;
     }
   }
   UNPROTECT(1);
@@ -58,49 +59,30 @@ SEXP unjam_int_vec_tail(cereal::BinaryInputArchive& bin, SEXPTYPE stype, const i
   return out;
 }
 
+template<class lenT>
 SEXP unjam_char_utf8_tail(cereal::BinaryInputArchive& bin) {
-  int N, n;
-  bin(N);
-  if (N == 0) return R_BlankScalarString;
+  
+  std::vector<lenT> nchars;
+  bin(nchars);
+  std::vector<uint8_t> data;
+  bin(data);
+  const char* dpt = reinterpret_cast<const char*>(data.data());
+  size_t N = nchars.size();
   
   SEXP out = PROTECT(Rf_allocVector(STRSXP, N));
   for (int i = 0; i < N; i++){
-    bin(n);
+    lenT n = nchars[i];
     if (n == 0)
       SET_STRING_ELT(out, i, R_BlankString);
     else if (n == -1)
       SET_STRING_ELT(out, i, R_NaString);
     else {
-      char el[n];
-      bin(cereal::BinaryData<void*>(el, n * sizeof(char)));
-      SET_STRING_ELT(out, i, Rf_mkCharLenCE(el, n, CE_UTF8));
+      SET_STRING_ELT(out, i, Rf_mkCharLenCE(dpt, n, CE_UTF8));
+      dpt += n;
     }
   }
   UNPROTECT(1);
   return out;
-}
-
-SEXP unjam_vector_tail(cereal::BinaryInputArchive&bin, const JamType& head) {
-  // head.print("unjam_vector_tail");
-  switch (head.el_type) {
-
-   case JamElType::BOOL:       return unjam_bool_vec_tail(bin);
-   case JamElType::BYTE:       return unjam_int_vec_tail<byte>(bin, INTSXP, NA_BYTE);
-   case JamElType::UBYTE:      return unjam_int_vec_tail<ubyte>(bin, INTSXP, NA_UBYTE);
-   case JamElType::SHORT:      return unjam_int_vec_tail<short>(bin, INTSXP, NA_SHORT);
-   case JamElType::USHORT:     return unjam_int_vec_tail<ushort>(bin, INTSXP, NA_USHORT);
-   case JamElType::INT:        return unjam_vec_tail<int>(bin, INTSXP);
-   case JamElType::UINT:       return unjam_int_vec_tail<uint>(bin, INTSXP, NA_UINT);
-
-   case JamElType::FLOAT:      return unjam_vec_tail<float>(bin, REALSXP);
-   case JamElType::DOUBLE:     return unjam_vec_tail<double>(bin, REALSXP);
-
-   case JamElType::UTF8:       return unjam_char_utf8_tail(bin);
-   case JamElType::STRING:     return unjam_vec_tail<std::string>(bin, STRSXP);
-
-   default:
-     stop("Unsupported JamElType in the header.");
-  }  
 }
 
 SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const JamType& head) {
@@ -149,16 +131,51 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
   SEXP out; 
 
   switch (head.coll_type) {
+
    case JamCollType::NIL:
      out = R_NilValue;
      break;
+
    case JamCollType::VECTOR:
-     out = unjam_vector_tail(bin, head);
+     switch (head.el_type) {
+
+      case JamElType::BOOL:       out = unjam_bool_vec_tail(bin); break;
+      case JamElType::BYTE:       out = unjam_int_vec_tail<byte>(bin, INTSXP, NA_BYTE); break;
+      case JamElType::UBYTE:      out = unjam_int_vec_tail<ubyte>(bin, INTSXP, NA_UBYTE); break;
+      case JamElType::SHORT:      out = unjam_int_vec_tail<short>(bin, INTSXP, NA_SHORT); break;
+      case JamElType::USHORT:     out = unjam_int_vec_tail<ushort>(bin, INTSXP, NA_USHORT); break;
+      case JamElType::INT:        out = unjam_vec_tail<int>(bin, INTSXP); break;
+      case JamElType::UINT:       out = unjam_int_vec_tail<uint>(bin, INTSXP, NA_UINT); break;
+
+      case JamElType::FLOAT:      out = unjam_vec_tail<float>(bin, REALSXP); break;
+      case JamElType::DOUBLE:     out = unjam_vec_tail<double>(bin, REALSXP); break;
+
+      case JamElType::STRING:     out = unjam_vec_tail<std::string>(bin, STRSXP); break;
+
+      case JamElType::UTF8:
+        {
+          JamType nchar_head;
+          bin(nchar_head);
+          switch (nchar_head.el_type) {
+           case JamElType::BYTE:  out = unjam_char_utf8_tail<byte>(bin); break;
+           case JamElType::SHORT: out = unjam_char_utf8_tail<short>(bin); break;
+           case JamElType::INT:   out = unjam_char_utf8_tail<int>(bin); break;
+           default:
+             stop("Invalid JamElType (%s) for nchar specification.",
+                  JamElType::toString(nchar_head.el_type));
+          }
+        };
+        break;
+      default:
+        stop("Unsupported JamElType in the header.");
+     }  
      break;
+
    case JamCollType::META:
    case JamCollType::LIST:
      out = unjam_list_tail(bin, head);
      break;
+
    default:
      stop("Not implemented");
   }

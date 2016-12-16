@@ -1,33 +1,5 @@
 // [[Rcpp::plugins("cpp11")]]
-// [[Rcpp::depends(Rcereal)]]
-
-
-// // for test
-// {
-//   std::ifstream fin(path, std::ios::binary);
-//   cereal::BinaryInputArchive bout(fin);
-//   bout(JamType());
-//   std::vector<TOUT> ivec;
-//   bout(ivec);
-//   cereal::JSONOutputArchive ojson(std::cout);
-//   ojson(CEREAL_NVP(ivec));
-//   fin.close();
-// }
-
-// void c_jam_map(SEXP x, const std::string& path) {
-//   if (TYPEOF(x) != VECSXP) {
-//     stop("Invalid SEXP type.");
-//   } else {
-//     std::map<std::string,JamType> jtypemap;
-//     for (s = ATTRIB(x); s != R_NilValue; s = CDR(s))
-//       if (TAG(s) == name) {
-// 	    if (name == R_DimNamesSymbol && TYPEOF(CAR(s)) == LISTSXP)
-//           error("old list is no longer allowed for dimnames attribute");
-// 	    SET_NAMED(CAR(s), 2);
-// 	    return CAR(s);
-//       }
-//   }
-// }
+// Rcpp::depends(Rcereal)]]
 
 #include "jamtypes.hpp"
 #include "rtypes.hpp"
@@ -35,9 +7,6 @@
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
 #include <cereal/archives/binary.hpp>
-// #include <cereal/archives/json.hpp>
-// #include <cereal/types/map.hpp>
-// #include <cereal/types/unordered_map.hpp>
 
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head = true);
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType& head);
@@ -152,16 +121,16 @@ void jam_int_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size_
 
 void jam_bool_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size_t& N) {
   size_t n = (N + 1)/2;
-  std::vector<byte> bytes(n);
+  std::vector<ubyte> bytes(n);
   size_t i;
-  for (i = 1; i < N; i += 2) {
-    byte b1 = (x[i-1] == NA_INTEGER) ? 2 : (x[i-1] ? 1 : 0); // 0010, 0001 or 0000
-    byte b2 = (x[i] == NA_INTEGER) ? 8 : (x[i] ? 4 : 0); // 1000, 0100 or 0000      
-    bytes[i/2] = b1 | b2;
+  for (i = 0; i < N; i += 2) {
+    ubyte b1 = (x[i] == NA_INTEGER) ? 2 : (x[i] ? 1 : 0); // 0010, 0001 or 0000
+    ubyte b2 = (x[i+1] == NA_INTEGER) ? 8 : (x[i+1] ? 4 : 0); // 1000, 0100 or 0000      
+    bytes[i/2] = (b1 | b2);
   }
   if (N % 2) {
-    // set odd last element separately
-    bytes[n] = (x[N] == NA_INTEGER) ? 14 : (x[N] ? 13 : 12); // 1110, 1101 or 1100
+    // set last odd element separately
+    bytes[n-1] = (x[N-1] == NA_INTEGER) ? 14 : (x[N-1] ? 13 : 12); // 1110, 1101 or 1100
   }
   bout(bytes);
 }
@@ -169,21 +138,61 @@ void jam_bool_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size
 void jam_utf8_vector_tail (cereal::BinaryOutputArchive& bout, SEXP x) {
   uint N = LENGTH(x);
 
-  bout(N);
+  std::vector<uint8_t> data;
+  size_t data_len = 0;
 
-  for (uint i = 0; i < N; i++) {
-    SEXP str = STRING_ELT(x, i);
-    if (str == R_NaString) {
-      bout(static_cast<uint>(-1));
-    } else  if (str == R_BlankString) {
-      bout(static_cast<uint>(0));
-    } else {
-      const char* ch = Rf_translateCharUTF8(str);
-      int len = strlen(ch);
-      bout(len);
-      bout(cereal::BinaryData<const void*>(ch, len));
-    }
+  std::vector<int> nchars(N);
+  int max_nchars = 0;
+  
+  for (int i = 0; i < N; i++) {
+      SEXP str = STRING_ELT(x, i);
+      if (str == R_NaString) {
+        nchars[i] = -1;
+      } else  if (str == R_BlankString) {
+        nchars[i] = 0;
+      } else {
+        const char* ch = Rf_translateCharUTF8(str);
+        int len = strlen(ch);
+        nchars[i] = len;
+        data_len += len;
+        max_nchars = std::max(len, max_nchars);
+        std::copy(&ch[0], &ch[len], std::inserter(data, data.end()));
+      }
   }
+
+  JamType head = JamType(JamCollType::VECTOR, JamElType::INT, false, false);
+  
+  if (max_nchars >= MAX_SHORT) {
+    bout(head);
+    bout(nchars);
+  } else if (max_nchars >= MAX_BYTE) {
+    std::vector<short> tnchars(nchars.begin(), nchars.end());
+    head.el_type = JamElType::SHORT;
+    bout(head);
+    bout(tnchars);
+  } else {
+    std::vector<byte> tnchars(nchars.begin(), nchars.end());
+    head.el_type = JamElType::BYTE;
+    bout(head);
+    bout(tnchars);
+  }
+
+  bout(data);
+  
+  // bout(N);
+  // for (uint i = 0; i < N; i++) {
+  //   SEXP str = STRING_ELT(x, i);
+  //   if (str == R_NaString) {
+  //     bout(static_cast<int>(-1));
+  //   } else  if (str == R_BlankString) {
+  //     bout(static_cast<int>(0));
+  //   } else {
+  //     const char* ch = Rf_translateCharUTF8(str);
+  //     int len = strlen(ch);
+  //     bout(len);
+  //     bout(cereal::BinaryData<const void*>(ch, len));
+  //   }
+  // }
 }
 
 void jam_string_vector_tail(cereal::BinaryOutputArchive& bout, SEXP x) {
@@ -221,16 +230,16 @@ void stop_on_invalid_type(SEXP x, const JamElType::type& jtype) {
 
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head) {
   JamType head = get_head(x);
+  if (with_head && TYPEOF(x) == INTSXP) {
+    // fixme: homogeneous lists of int vectors don't use this optimization
+    head.el_type = best_int_type(x);
+    // std::cout << "best int type:" << JamElType::toString(head.el_type) << std::endl;
+  }
   jam_sexp(bout, x, with_head, head);
 }
 
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType& head) {
   // head.print("jam_sexp:");
-
-  if (TYPEOF(x) == INTSXP) {
-    head.el_type = best_int_type(x);
-    // std::cout << "best int type:" << JamElType::toString(head.el_type) << std::endl;
-  }
 
   size_t N = XLENGTH(x);
   JamElType::type jtype = head.el_type;

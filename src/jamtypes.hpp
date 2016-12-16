@@ -126,25 +126,6 @@ class JamElType {
   }
 };
 
-// class JamUtf8 {
-
-//  public:
-//   JamUtf8() {};
-//   JamUtf8(const void* utf8, int len): utf8(utf8), N(len) {}; 
-
-//   int N = -1;
-  
-//   template<class Archive>
-//   void serialize(Archive & ar)
-//   {
-//     ar(N);
-//     if (N > 0) ar(cereal::BinaryData<const void*>(utf8, N));
-//   }
-
-//  private:
-//   const void* utf8;
-// };
-
 class JamType {
 
  public:
