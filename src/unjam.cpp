@@ -1,17 +1,4 @@
-
-// Rcpp::plugins("cpp11")]]
-// Rcpp::depends(Rcereal)]]
-
-#include "jamtypes.hpp"
-#include "rtypes.hpp"
-#include <cereal/cereal.hpp>
-#include <cereal/types/string.hpp>
-#include <cereal/types/array.hpp>
-#include <cereal/types/vector.hpp>
-#include <cereal/archives/binary.hpp>
-
-SEXP unjam_sexp(cereal::BinaryInputArchive& bin);
-SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head);
+#include "common.hpp"
 
 SEXP unjam_bool_vec_tail(cereal::BinaryInputArchive& bin) {
   std::vector<ubyte> bytes;
@@ -118,7 +105,7 @@ SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const JamType& head) {
 }
 
 SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
-  // head.print("unjam_sexp");
+  head.print("unjam_sexp");
   
   std::vector<std::string> names;
   if (head.hasNames()) bin(names);
@@ -138,7 +125,7 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
 
    case JamCollType::VECTOR:
      switch (head.el_type) {
-
+      case JamElType::NIL:        stop("Invalid VECTOR specification. Elements of a vector cannot be nil.");
       case JamElType::BOOL:       out = unjam_bool_vec_tail(bin); break;
       case JamElType::BYTE:       out = unjam_int_vec_tail<byte>(bin, INTSXP, NA_BYTE); break;
       case JamElType::UBYTE:      out = unjam_int_vec_tail<ubyte>(bin, INTSXP, NA_UBYTE); break;
@@ -167,7 +154,7 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
         };
         break;
       default:
-        stop("Unsupported JamElType in the header.");
+        stop("Unsupported JamElType in the header (%s).", JamElType::toString(head.el_type));
      }  
      break;
 

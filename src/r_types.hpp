@@ -1,7 +1,7 @@
 #ifndef __JAM_RTYPES_HPP__
 #define __JAM_RTYPES_HPP__
 
-#include "jamtypes.hpp"
+#include "jam_types.hpp"
 #include <cstdint>
 #include <string>
 #include <fstream>
@@ -10,12 +10,19 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
+#define GET_NAMES(x) Rf_getAttrib(x, R_NamesSymbol)
+#define GET_DIM(x)   Rf_getAttrib(x, R_DimSymbol)
+
 SEXPTYPE Jam2SexpType (JamElType::type jtype);
 
 JamElType::type Sexp2JamElType (SEXPTYPE stype);
 
 JamElType::type best_int_type(SEXP x);
 
+JamType get_head(SEXP x);
+
+// Didn't find in R, so roll my own.
+SEXP get_list_elt(SEXP x, const char* name);
 
 // default implementation for numeric types
 template <class inT>

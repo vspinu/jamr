@@ -46,7 +46,7 @@ struct JamCollType {
     NIL       = 0,
     VECTOR    = 1,
     LIST      = 2,
-    DF        = 3,
+    HDF       = 3,
     META      = 4, 
 
     UNSUPORTED = 254, 
@@ -58,12 +58,12 @@ struct JamCollType {
      case NIL:        return "NIL";
      case VECTOR:     return "VECTOR";
      case LIST:       return "LIST";
-     case DF:         return "DF";
+     case HDF:        return "HDF";
      case META:       return "META";
      case UNSUPORTED: return "UNSUPORTED";
      case UNDEFINED:  return "UNDEFINED";
     }
-    throw std::runtime_error("Invalid JamCollType");
+    return "INVALID(" + std::to_string((int) t) + ")";
   }
 };
 
@@ -99,6 +99,7 @@ class JamElType {
   
   static std::string toString(type t) {
     switch(t) {
+     case NIL:       return "NIL";
      case BOOL:      return "BOOL";
      case BYTE:      return "BYTE";
      case UBYTE:     return "UBYTE";
@@ -122,7 +123,7 @@ class JamElType {
      case UNSUPORTED: return "UNSUPORTED";
      case UNDEFINED:  return "UNDEFINED";
     }
-    throw std::runtime_error("Invalid JamElType ");
+    return "INVALID(" + std::to_string((int) t) + ")";
   }
 };
 

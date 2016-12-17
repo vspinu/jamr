@@ -1,5 +1,7 @@
 
-#include "rtypes.hpp"
+#include "r_types.hpp"
+#include "common.hpp"
+#include <cstring>
 
 SEXPTYPE Jam2SexpType (JamElType::type jtype) {
   switch(jtype) {
@@ -22,7 +24,7 @@ SEXPTYPE Jam2SexpType (JamElType::type jtype) {
      // case JamElType::BINARY:
      //   return R_RAW;
   }
-  throw std::runtime_error("Invalid JamElType");
+  throw std::runtime_error("Cannot convert JamElType " + std::to_string((int) jtype) + " to SEXPTYPE.");
 }
 
 JamElType::type Sexp2JamElType (SEXPTYPE stype) {
@@ -62,6 +64,44 @@ JamElType::type best_int_type(SEXP x){
   if (M >= MAX_BYTE && m >= 0) return JamElType::UBYTE;
   if (M >= MAX_BYTE) return JamElType::SHORT;
   return JamElType::BYTE;
+}
+
+JamType get_head(SEXP x) {
+  bool has_names = GET_NAMES(x) != R_NilValue;
+  bool has_meta = meta_length(x) > 0;
+
+  switch (TYPEOF(x)) {
+   case NILSXP:
+     return JAM_NIL_HEAD;
+   case VECSXP:
+     if (XLENGTH(x) == 0) {
+       return JamType(JamCollType::LIST, JamElType::UNDEFINED);
+     } else {
+       if (common_el_type(x) >= 0) {
+         return JamType(JamCollType::LIST, JamElType::VECTOR, has_names, has_meta);
+       } else {
+         return JamType(JamCollType::LIST, JamElType::MIXED, has_names, has_meta);
+       }
+     }
+   default:
+     JamElType::type el_type = (XLENGTH(x) == 0) ? JamElType::UNDEFINED : Sexp2JamElType(TYPEOF(x));
+     return JamType(JamCollType::VECTOR, el_type, has_names, has_meta);     
+  }
+}
+
+SEXP get_list_elt(SEXP x, const char* name) {
+  SEXP names = GET_NAMES(x);
+  if (names == R_NilValue) return R_NilValue;
+  size_t i;
+  bool found = false;
+  for (i = 0; i < XLENGTH(names); i++) {
+    if (std::strcmp(CHAR(STRING_ELT(names, i)), name) == 0){
+      found = true;
+      break;
+    }
+  }
+  if (found) return VECTOR_ELT(x, i);
+  else return R_NilValue;
 }
 
 // specialization for strings
