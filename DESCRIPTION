@@ -1,21 +1,17 @@
-Package: jam
+Package: jamr
 Title: Fast and memory efficient serialization of R objects.
 Version: 0.0.0.9000
 Authors@R: person("Vitalie", "Spinu", email = "spinuvit@gmail.com", role = c("aut", "cre"))
 Description: Provide fast and memory efficient serialization capabilities of R
-    objects based on 'cereal' C++ library. Uses simple memory layout to
-    facilitate access from C++. Generates C++ ready to use header files
-    for target objects in order to facilitate de-serialization from C++
-    projects.
+    objects. Uses simple memory layout to facilitate access from C++ stand alone
+    applications.
 Depends:
     R (>= 3.1.0)
-Imports:
-    Rcpp
 LinkingTo: Rcpp
 Imports: Rcpp
-Suggests: testthat, knitr
-URL: https://github.com/vspinu/jam
-BugReports: https://github.com/vspinu/jam/issues
+Suggests: readr, testthat, knitr
+URL: https://github.com/vspinu/jamr
+BugReports: https://github.com/vspinu/jamr/issues
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true

@@ -1,61 +1,38 @@
-#' @useDynLib jam
-#' @importFrom Rcpp sourceCpp
-NULL
 
-
-##' Serialize R objects to files
+##' Serialize R objects into binary files.
 ##'
-##' Fast serialization of R objects into binary archives. All types of atomic
-##' vectors, arbitrarly nested lists and data frames are supported. Atributes of
-##' supported data types are also saved except of the row.names. Non suported
-##' attribute types are silently dropped.
+##' Fast serialization of R objects into binary archives. Currently supported
+##' types are: atomic vectors and arrays (except raw and complex), arbitrarily
+##' nested lists and data frames with primitive and list columns. Attributes are
+##' also serialized as long as long as they are of supported types. Attributes
+##' of non supported types are silently dropped.
 ##' 
 ##' @param obj atomic vector or list, with or without attributes
-##' @param file archive file name. Defaults to "./data/[obj_name].jam"
+##' @param file archive file name. Defaults to "./data/[obj_name].rjam"
 ##' @export 
+##' @return \code{unjam} returns de-serialized object; \code{jam} returns input
+##'     object invisibly.
 ##' @author Vitalie Spinu
 ##' @examples
 ##' \dontrun{
-##'   jam(iris, "./data/iris.jam")
-##'   all.equal(iris, unjam("./data/iris.jam"))
+##'   jam(iris, "./data/iris.rjam")
+##'   all.equal(iris, unjam("./data/iris.rjam"))
 ##' }
-jam <- function(obj, file = sprintf("./data/%s.jam", deparse(substitute(obj)))){
-    if (dir.exists(dirname(file)))
-        dir.create(file, showWarnings = FALSE, recursive = TRUE)
-    c_jam(obj)
-    invisible(ofile)
+jam <- function(obj, file = sprintf("./data/%s.rjam", deparse(substitute(obj)))){
+    file <- path.expand(file)
+    dir <- dirname(file)
+    if (dir.exists(dir))
+        dir.create(dir, showWarnings = FALSE, recursive = TRUE)
+    c_jam(obj, file)
+    invisible(obj)
 }
 
 ##' @rdname jam
 ##' @export
 unjam <- function(file){
+    file <- path.expand(file)
+    if (!file.exists(file))
+        stop(sprintf("Archive file '%s' does not exist.", file))
 
-    if (!file.exists(ifile))
-        stop(sprintf("Archive file '%s' does not exist.", ifile))
-
-    c_unjam(ifile)
+    c_unjam(file)
 }
-
-
-## ## first type is the default
-## R2C_TYPES <- list(integer = c("int", "uint", "byte", "ubyte", "short", "ushort", "long", "ulong", "bool"),
-##                   double = c("double", "float"),
-##                   logical = c("bool"),
-##                   character = c("string"))
-
-## JAM_TYPES <- list(
-##     bool   = 0L,
-##     byte   = 1L,
-##     ubyte  = 2L,
-##     short  = 3L,
-##     ushort = 4L,
-##     int    = 5L,
-##     uint   = 6L,
-##     long   = 7L,
-##     ulong  = 8L,
-##     float  = 9L,
-##     double = 10L,
-##     utF8   = 11L,
-##     bitset = 12L, 
-##     undefined = 255L)
-

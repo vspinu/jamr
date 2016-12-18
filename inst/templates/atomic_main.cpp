@@ -1,5 +1,5 @@
 
-{{{include_jammer}}}
+{{{include_jamr}}}
 
 int main() {
 

@@ -1,4 +1,4 @@
 library(testthat)
-library(jammer)
+library(jamr)
 
-test_check("jammer")
+test_check("jamr")

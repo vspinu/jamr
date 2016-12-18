@@ -1,32 +1,22 @@
 #include "common.hpp"
 
-void jam_names(cereal::BinaryOutputArchive& bout, SEXP x) {
-  std::vector<std::string> names = as<std::vector<std::string>>(GET_NAMES(x));
-  bout(names);
-}
-
-// dim is an ugly hack to save dim metadata for data.frames in ham.cpp
-void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x, SEXP dim) {
+void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x) {
+  PRINT(">META\n");
   std::vector<std::string> names;
   std::vector<int> ixs;
   uint j = 0;
   SEXP attr = ATTRIB(x);
   while (attr != R_NilValue) {
     bool can_jam = Sexp2JamElType(TYPEOF(CAR(attr))) != JamElType::UNSUPORTED;
-    if (can_jam && (TAG(attr) != R_RowNamesSymbol)) {
+    if (can_jam) {
       ixs.push_back(j);
       if (TAG(attr) == R_NilValue)
         names.push_back("");
       else
         names.push_back(std::string(CHAR(PRINTNAME(TAG(attr)))));
-      // std::cout << "attr:" << names.back() << std::endl;
     }
     j++;
     attr = CDR(attr);
-  }
-  uint N = names.size();
-  if (dim != R_NilValue) {
-    names.push_back("dim");
   }
   bout(names);
   bout(static_cast<uint>(names.size()));
@@ -34,7 +24,7 @@ void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x, SEXP dim) {
   if (names.size() > 0) {
     uint j = 0;
     attr = ATTRIB(x);
-    for (uint i = 0; i < N; i++) {
+    for (uint i = 0; i < names.size(); i++) {
       while (j < ixs[i]){
         j++;
         attr = CDR(attr);
@@ -42,9 +32,7 @@ void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x, SEXP dim) {
       jam_sexp(bout, CAR(attr), true);
     }
   }
-  if (dim != R_NilValue) {
-    jam_sexp(bout, dim, true);
-  }
+  PRINT("<META\n");
 }
 
 template<typename TOUT, typename TIN>
@@ -156,22 +144,21 @@ void jam_list_tail(cereal::BinaryOutputArchive& bout, SEXP x, JamType& head) {
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head) {
   JamType head = get_head(x);
   if (with_head && TYPEOF(x) == INTSXP) {
-    // fixme: homogeneous lists of int vectors don't use this optimization
+    // FIXME: ULISTs of int vectors don't use this optimization
     head.el_type = best_int_type(x);
-    // std::cout << "best int type:" << JamElType::toString(head.el_type) << std::endl;
   }
-  head.print("jam_sexp:");
   jam_sexp(bout, x, with_head, head);
 }
 
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType& head) {
-  // head.print("jam_sexp:");
-
+#ifdef DEBUG
+  head.print("jam_sexp:");
+#endif
+  
   size_t N = XLENGTH(x);
   JamElType::type jtype = head.el_type;
 
   if (with_head) bout(head);
-  if (head.hasNames()) jam_names(bout, x);
   if (head.hasMeta()) jam_meta(bout, x);
  
   switch (TYPEOF(x)) {

@@ -19,12 +19,13 @@ SEXPTYPE Jam2SexpType (JamElType::type jtype) {
    case JamElType::FLOAT:
    case JamElType::DOUBLE:
      return REALSXP;
-     // case JamElType::UTF8:
-     //   return R_CHR;
+   case JamElType::UTF8:
+   case JamElType::STRING:
+     return STRSXP;
      // case JamElType::BINARY:
      //   return R_RAW;
   }
-  throw std::runtime_error("Cannot convert JamElType " + std::to_string((int) jtype) + " to SEXPTYPE.");
+  throw std::runtime_error("Cannot convert JamElType " + JamElType::toString(jtype) + " to SEXPTYPE.");
 }
 
 JamElType::type Sexp2JamElType (SEXPTYPE stype) {

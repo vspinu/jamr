@@ -148,10 +148,6 @@ class JamType {
     else extra &= ~(1);
   }
 
-  bool hasNames () const {
-    return extra & 2;
-  }
-
   void print () const {
     print("");
   }
@@ -159,7 +155,6 @@ class JamType {
     std::cout << name
               << " coll_type:" << JamCollType::toString(coll_type)
               << " el_type:" << JamElType::toString(el_type)
-              << " names:" << (hasNames() ? "true" : "false")
               << " meta:" << (hasMeta() ? "true" : "false") << std::endl;
   }
   

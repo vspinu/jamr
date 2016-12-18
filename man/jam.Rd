@@ -3,27 +3,32 @@
 \name{jam}
 \alias{jam}
 \alias{unjam}
-\title{Serialize R objects to files}
+\title{Serialize R objects into binary files.}
 \usage{
-jam(obj, file = sprintf("./data/\%s.jam", deparse(substitute(obj))))
+jam(obj, file = sprintf("./data/\%s.rjam", deparse(substitute(obj))))
 
 unjam(file)
 }
 \arguments{
 \item{obj}{atomic vector or list, with or without attributes}
 
-\item{file}{archive file name. Defaults to "./data/[obj_name].jam"}
+\item{file}{archive file name. Defaults to "./data/[obj_name].rjam"}
+}
+\value{
+\code{unjam} returns de-serialized object; \code{jam} returns input
+    object invisibly.
 }
 \description{
-Fast serialization of R objects into binary archives. All types of atomic
-vectors, arbitrarly nested lists and data frames are supported. Atributes of
-supported data types are also saved except of the row.names. Non suported
-attribute types are silently dropped.
+Fast serialization of R objects into binary archives. Currently supported
+types are: atomic vectors and arrays (except raw and complex), arbitrarily
+nested lists and data frames with primitive and list columns. Attributes are
+also serialized as long as long as they are of supported types. Attributes
+of non supported types are silently dropped.
 }
 \examples{
 \dontrun{
-  jam(iris, "./data/iris.jam")
-  all.equal(iris, unjam("./data/iris.jam"))
+  jam(iris, "./data/iris.rjam")
+  all.equal(iris, unjam("./data/iris.rjam"))
 }
 }
 \author{

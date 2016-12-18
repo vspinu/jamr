@@ -104,16 +104,31 @@ SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const JamType& head) {
   return out;
 }
 
-SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
-  head.print("unjam_sexp");
-  
+SEXP unjam_meta(cereal::BinaryInputArchive& bin) {
+  PRINT(">META\n");
   std::vector<std::string> names;
-  if (head.hasNames()) bin(names);
+  bin(names);
+  SEXP out = PROTECT(unjam_sexp(bin, JAM_META_HEAD));
+  if (names.size() > 0) {
+    Rf_setAttrib(out, R_NamesSymbol, toSEXP(names, STRSXP));
+  }
+  UNPROTECT(1);
+  PRINT("<META\n");
+  return out;
+}
 
+SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
+#ifdef DEBUG
+  head.print("unjam_sexp:");
+#endif
+  
+  // [META]
   SEXP meta = R_NilValue;
-  if (head.hasMeta()) meta = unjam_sexp(bin, JAM_META_HEAD);
-
-  PROTECT(meta);
+  int nprot = 0;
+  if (head.hasMeta()){
+    meta = PROTECT(unjam_meta(bin));
+    nprot++;
+  }
   
   SEXP out; 
 
@@ -164,26 +179,21 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
      break;
 
    default:
-     stop("Not implemented");
+     stop("Unsupported JamCollType in the header (%s).", JamCollType::toString(head.coll_type));
   }
 
   PROTECT(out);
-
-  if (names.size() > 0) {
-    Rf_setAttrib(out, R_NamesSymbol, toSEXP(names, STRSXP));
-  }
+  nprot++;
 
   if (meta != R_NilValue) {
     SEXP meta_names = Rf_getAttrib(meta, R_NamesSymbol);
     int metaN = LENGTH(meta_names);
     for (int i = 0; i < metaN; i++) {
-      Rf_setAttrib(out,
-                   Rf_installChar(STRING_ELT(meta_names, i)),
-                   VECTOR_ELT(meta, i));
+      Rf_setAttrib(out, Rf_installChar(STRING_ELT(meta_names, i)), VECTOR_ELT(meta, i));
     }
   }
   
-  UNPROTECT(2);
+  UNPROTECT(nprot);
   return out;
 }
 
