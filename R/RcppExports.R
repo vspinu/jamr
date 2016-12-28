@@ -5,11 +5,15 @@ c_jam <- function(x, path) {
     invisible(.Call('jamr_c_jam', PACKAGE = 'jamr', x, path))
 }
 
-c_jar <- function(x, path, append) {
-    invisible(.Call('jamr_c_jar', PACKAGE = 'jamr', x, path, append))
+c_jar <- function(x, path, append, rows_per_chunk) {
+    invisible(.Call('jamr_c_jar', PACKAGE = 'jamr', x, path, append, rows_per_chunk))
 }
 
 c_unjam <- function(path) {
     .Call('jamr_c_unjam', PACKAGE = 'jamr', path)
+}
+
+c_unjar <- function(path, chunks) {
+    .Call('jamr_c_unjar', PACKAGE = 'jamr', path, chunks)
 }
 

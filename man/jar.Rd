@@ -5,18 +5,24 @@
 \alias{unjar}
 \title{Serialize data.frames by rows.}
 \usage{
-jar(obj, file, append = FALSE)
+jar(obj, file, append = FALSE, rows_per_chunk = -1)
 
-unjar(file)
+unjar(file, chunks = -1)
 }
 \arguments{
 \item{obj}{Atomic vector or list, with or without attributes}
 
 \item{file}{Archive file name.}
 
-\item{append}{If \code{TRUE} the data is appended to existing file. It's up
-to the user to ensure that new data is compatible with the data from the
-archive file. See also \code{\link{jar_csv}}.}
+\item{append}{If \code{TRUE} the data is appended to existing file resulting
+in multi-chunk archive. No attributes are stored for appended chunks
+which could result in wrong or even corrupted de-serialization of factor
+levels. See also \code{\link{jar_csv}} for a common use case.}
+
+\item{rows_per_chunk}{If too small, serialization or deserialization will be
+slower but can result in smaller archive sizes because type-size
+optimization is performed on smaller chunks. Default is to write
+everything in one chunk.}
 }
 \value{
 \code{unjar} returns de-serialized \code{data.frame}; \code{jar}

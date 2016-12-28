@@ -17,14 +17,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // c_jar
-void c_jar(SEXP x, const std::string path, const bool& append);
-RcppExport SEXP jamr_c_jar(SEXP xSEXP, SEXP pathSEXP, SEXP appendSEXP) {
+void c_jar(SEXP x, const std::string& path, bool append, int rows_per_chunk);
+RcppExport SEXP jamr_c_jar(SEXP xSEXP, SEXP pathSEXP, SEXP appendSEXP, SEXP rows_per_chunkSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const std::string >::type path(pathSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type append(appendSEXP);
-    c_jar(x, path, append);
+    Rcpp::traits::input_parameter< const std::string& >::type path(pathSEXP);
+    Rcpp::traits::input_parameter< bool >::type append(appendSEXP);
+    Rcpp::traits::input_parameter< int >::type rows_per_chunk(rows_per_chunkSEXP);
+    c_jar(x, path, append, rows_per_chunk);
     return R_NilValue;
 END_RCPP
 }
@@ -36,6 +37,18 @@ BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const std::string& >::type path(pathSEXP);
     rcpp_result_gen = Rcpp::wrap(c_unjam(path));
+    return rcpp_result_gen;
+END_RCPP
+}
+// c_unjar
+SEXP c_unjar(const std::string& path, int chunks);
+RcppExport SEXP jamr_c_unjar(SEXP pathSEXP, SEXP chunksSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type path(pathSEXP);
+    Rcpp::traits::input_parameter< int >::type chunks(chunksSEXP);
+    rcpp_result_gen = Rcpp::wrap(c_unjar(path, chunks));
     return rcpp_result_gen;
 END_RCPP
 }

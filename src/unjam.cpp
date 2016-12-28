@@ -1,6 +1,10 @@
-#include "common.hpp"
+#include "rutils.hpp"
+
+SEXP unjam_sexp(cereal::BinaryInputArchive& bin);
+SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const Head& head);
 
 SEXP unjam_bool_vec_tail(cereal::BinaryInputArchive& bin) {
+  PRINT("unjam_bool_vec_tail\n");
   std::vector<ubyte> bytes;
   bin(bytes);
   size_t n = bytes.size();
@@ -25,6 +29,7 @@ SEXP unjam_bool_vec_tail(cereal::BinaryInputArchive& bin) {
 
 template <class inT>
 SEXP unjam_vec_tail(cereal::BinaryInputArchive& bin, SEXPTYPE stype){
+  PRINT("unjam_int_vec_tail\n");
   std::vector<inT> vec;
   bin(vec);
   return toSEXP<inT>(vec, stype);
@@ -32,6 +37,7 @@ SEXP unjam_vec_tail(cereal::BinaryInputArchive& bin, SEXPTYPE stype){
 
 template <class inT>
 SEXP unjam_int_vec_tail(cereal::BinaryInputArchive& bin, SEXPTYPE stype, const inT& na_val){
+  PRINT("unjam_int_vec_tail\n");
   std::vector<inT> vec;
   bin(vec);
   SEXP out = PROTECT(Rf_allocVector(INTSXP, vec.size()));
@@ -48,6 +54,7 @@ SEXP unjam_int_vec_tail(cereal::BinaryInputArchive& bin, SEXPTYPE stype, const i
 
 template<class lenT>
 SEXP unjam_char_utf8_tail(cereal::BinaryInputArchive& bin) {
+  PRINT("unjam_char_utf8_tail\n");
   
   std::vector<lenT> nchars;
   bin(nchars);
@@ -72,8 +79,11 @@ SEXP unjam_char_utf8_tail(cereal::BinaryInputArchive& bin) {
   return out;
 }
 
-SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const JamType& head) {
-  // head.print("unjam_list_tail");
+SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const Head& head) {
+#ifdef DEBUG
+  head.print("unjam_list_tail:");
+#endif
+  
   uint N;
   bin(N);
   
@@ -81,15 +91,15 @@ SEXP unjam_list_tail(cereal::BinaryInputArchive& bin, const JamType& head) {
 
   if (N > 0) {
     switch (head.el_type) {
-     case JamElType::MIXED:
+     case jam::MIXED:
        {
          for (int i = 0; i < N; ++i)
            SET_VECTOR_ELT(out, i, unjam_sexp(bin));
        }
        break;
-     case JamElType::VECTOR:
+     case jam::VECTOR:
        {
-         JamType common_head;
+         Head common_head;
          bin(common_head);
          for (int i = 0; i < N; ++i)
            SET_VECTOR_ELT(out, i, unjam_sexp(bin, common_head));
@@ -108,7 +118,7 @@ SEXP unjam_meta(cereal::BinaryInputArchive& bin) {
   PRINT(">META\n");
   std::vector<std::string> names;
   bin(names);
-  SEXP out = PROTECT(unjam_sexp(bin, JAM_META_HEAD));
+  SEXP out = PROTECT(unjam_list_tail(bin, JAM_META_HEAD));
   if (names.size() > 0) {
     Rf_setAttrib(out, R_NamesSymbol, toSEXP(names, STRSXP));
   }
@@ -117,7 +127,7 @@ SEXP unjam_meta(cereal::BinaryInputArchive& bin) {
   return out;
 }
 
-SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
+SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const Head& head) {
 #ifdef DEBUG
   head.print("unjam_sexp:");
 #endif
@@ -134,52 +144,52 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
 
   switch (head.coll_type) {
 
-   case JamCollType::NIL:
+   case jam::NIL:
      out = R_NilValue;
      break;
 
-   case JamCollType::VECTOR:
+   case jam::VECTOR:
      switch (head.el_type) {
-      case JamElType::NIL:        stop("Invalid VECTOR specification. Elements of a vector cannot be nil.");
-      case JamElType::BOOL:       out = unjam_bool_vec_tail(bin); break;
-      case JamElType::BYTE:       out = unjam_int_vec_tail<byte>(bin, INTSXP, NA_BYTE); break;
-      case JamElType::UBYTE:      out = unjam_int_vec_tail<ubyte>(bin, INTSXP, NA_UBYTE); break;
-      case JamElType::SHORT:      out = unjam_int_vec_tail<short>(bin, INTSXP, NA_SHORT); break;
-      case JamElType::USHORT:     out = unjam_int_vec_tail<ushort>(bin, INTSXP, NA_USHORT); break;
-      case JamElType::INT:        out = unjam_vec_tail<int>(bin, INTSXP); break;
-      case JamElType::UINT:       out = unjam_int_vec_tail<uint>(bin, INTSXP, NA_UINT); break;
+      case jam::NIL:        stop("Invalid VECTOR specification. Elements of a vector cannot be nil.");
+      case jam::BOOL:       out = unjam_bool_vec_tail(bin); break;
+      case jam::BYTE:       out = unjam_int_vec_tail<byte>(bin, INTSXP, NA_BYTE); break;
+      case jam::UBYTE:      out = unjam_int_vec_tail<ubyte>(bin, INTSXP, NA_UBYTE); break;
+      case jam::SHORT:      out = unjam_int_vec_tail<short>(bin, INTSXP, NA_SHORT); break;
+      case jam::USHORT:     out = unjam_int_vec_tail<ushort>(bin, INTSXP, NA_USHORT); break;
+      case jam::INT:        out = unjam_vec_tail<int>(bin, INTSXP); break;
+      case jam::UINT:       out = unjam_int_vec_tail<uint>(bin, INTSXP, NA_UINT); break;
 
-      case JamElType::FLOAT:      out = unjam_vec_tail<float>(bin, REALSXP); break;
-      case JamElType::DOUBLE:     out = unjam_vec_tail<double>(bin, REALSXP); break;
+      case jam::FLOAT:      out = unjam_vec_tail<float>(bin, REALSXP); break;
+      case jam::DOUBLE:     out = unjam_vec_tail<double>(bin, REALSXP); break;
 
-      case JamElType::STRING:     out = unjam_vec_tail<std::string>(bin, STRSXP); break;
+      case jam::STRING:     out = unjam_vec_tail<std::string>(bin, STRSXP); break;
 
-      case JamElType::UTF8:
+      case jam::UTF8:
         {
-          JamType nchar_head;
+          Head nchar_head;
           bin(nchar_head);
           switch (nchar_head.el_type) {
-           case JamElType::BYTE:  out = unjam_char_utf8_tail<byte>(bin); break;
-           case JamElType::SHORT: out = unjam_char_utf8_tail<short>(bin); break;
-           case JamElType::INT:   out = unjam_char_utf8_tail<int>(bin); break;
+           case jam::BYTE:  out = unjam_char_utf8_tail<byte>(bin); break;
+           case jam::SHORT: out = unjam_char_utf8_tail<short>(bin); break;
+           case jam::INT:   out = unjam_char_utf8_tail<int>(bin); break;
            default:
              stop("Invalid JamElType (%s) for nchar specification.",
-                  JamElType::toString(nchar_head.el_type));
+                  jam::Type2String(nchar_head.el_type));
           }
         };
         break;
       default:
-        stop("Unsupported JamElType in the header (%s).", JamElType::toString(head.el_type));
+        stop("Unsupported JamElType in the header (%s).", jam::Type2String(head.el_type));
      }  
      break;
 
-   case JamCollType::META:
-   case JamCollType::LIST:
+   case jam::META:
+   case jam::LIST:
      out = unjam_list_tail(bin, head);
      break;
 
    default:
-     stop("Unsupported JamCollType in the header (%s).", JamCollType::toString(head.coll_type));
+     stop("Unsupported jam::Type in the header (%s).", jam::Type2String(head.coll_type));
   }
 
   PROTECT(out);
@@ -198,8 +208,7 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const JamType& head) {
 }
 
 SEXP unjam_sexp(cereal::BinaryInputArchive& bin) {
-  JamType head;
-  bin(head);
+  Head head; bin(head);
   return unjam_sexp(bin, head);
 }
 

@@ -1,4 +1,17 @@
-#include "common.hpp"
+#include "rutils.hpp"
+
+// LAYOUT:
+// HOBJ   =  HEAD OBJ                   : object with head
+// OBJ    = [VECTOR|MLIST|ULIST]        : supported object (no head)
+// VECTOR = [META] DATA                 :
+// MLIST  = [META] N HOBJ...            : mixed list
+// ULIST  = [META] N COMMON_HEAD OBJ... : uniform list
+// META   =  NAMES N HOBJ...            : meta (cannot hold meta itself)
+
+void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x);
+void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head = true);
+void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, Head& head);
+
 
 void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x) {
   PRINT(">META\n");
@@ -7,7 +20,7 @@ void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x) {
   uint j = 0;
   SEXP attr = ATTRIB(x);
   while (attr != R_NilValue) {
-    bool can_jam = Sexp2JamElType(TYPEOF(CAR(attr))) != JamElType::UNSUPORTED;
+    bool can_jam = Sexp2JamElType(TYPEOF(CAR(attr))) != UNSUPORTED;
     if (can_jam) {
       ixs.push_back(j);
       if (TAG(attr) == R_NilValue)
@@ -18,6 +31,7 @@ void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x) {
     j++;
     attr = CDR(attr);
   }
+
   bout(names);
   bout(static_cast<uint>(names.size()));
 
@@ -35,21 +49,21 @@ void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x) {
   PRINT("<META\n");
 }
 
-template<typename TOUT, typename TIN>
-void jam_vector_tail (cereal::BinaryOutputArchive& bout, TIN* x, const size_t& N) {
-  std::vector<TOUT> ovec(x, x + N);
-  bout(ovec);
+template<typename Tout, typename Tin>
+void jam_vector_tail (cereal::BinaryOutputArchive& bout, Tin* x, const size_t& N) {
+  std::vector<Tout> out(x, x + N);
+  bout(out);
 }
 
-template<typename TOUT>
-void jam_int_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size_t& N, const TOUT& na_val) {
-  std::vector<TOUT> ovec(N);
+template<typename Tout>
+void jam_int_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size_t& N, const Tout& na_val) {
+  std::vector<Tout> out(N);
   for (size_t i = 0; i < N; i++) {
     int xi = x[i];
-    if (xi == NA_INTEGER) ovec[i] = na_val;
-    else ovec[i] = xi;
+    if (xi == NA_INTEGER) out[i] = na_val;
+    else out[i] = static_cast<Tout>(xi);
   }
-  bout(ovec);
+  bout(out);
 }
 
 void jam_bool_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size_t& N) {
@@ -57,7 +71,7 @@ void jam_bool_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size
   std::vector<ubyte> bytes(n);
   size_t i;
   for (i = 0; i < N; i += 2) {
-    ubyte b1 = (x[i] == NA_INTEGER) ? 2 : (x[i] ? 1 : 0); // 0010, 0001 or 0000
+    ubyte b1 = (x[i] == NA_INTEGER) ? 2 : (x[i] ? 1 : 0);     // 0010, 0001 or 0000
     ubyte b2 = (x[i+1] == NA_INTEGER) ? 8 : (x[i+1] ? 4 : 0); // 1000, 0100 or 0000      
     bytes[i/2] = (b1 | b2);
   }
@@ -68,6 +82,7 @@ void jam_bool_vector_tail (cereal::BinaryOutputArchive& bout, int* x, const size
   bout(bytes);
 }
 
+// HEAD_LEN_TYPE|NCHARS...|UTF8...
 void jam_utf8_vector_tail (cereal::BinaryOutputArchive& bout, SEXP x) {
   uint N = LENGTH(x);
 
@@ -93,19 +108,19 @@ void jam_utf8_vector_tail (cereal::BinaryOutputArchive& bout, SEXP x) {
     }
   }
 
-  JamType head = JamType(JamCollType::VECTOR, JamElType::INT, false, false);
+  Head head = Head(VECTOR, INT, false);
   
   if (max_nchars >= MAX_SHORT) {
     bout(head);
     bout(nchars);
   } else if (max_nchars >= MAX_BYTE) {
     std::vector<short> tnchars(nchars.begin(), nchars.end());
-    head.el_type = JamElType::SHORT;
+    head.el_type = SHORT;
     bout(head);
     bout(tnchars);
   } else {
     std::vector<byte> tnchars(nchars.begin(), nchars.end());
-    head.el_type = JamElType::BYTE;
+    head.el_type = BYTE;
     bout(head);
     bout(tnchars);
   }
@@ -117,21 +132,23 @@ void jam_string_vector_tail(cereal::BinaryOutputArchive& bout, SEXP x) {
   bout(as<std::vector<std::string>>(x));
 }
 
-void jam_list_tail(cereal::BinaryOutputArchive& bout, SEXP x, JamType& head) {
+// ULIST: N|COMMON_HEAD|ELS_NO_HEAD...
+// MLIST: N|ELS_WITH_HEAD...
+void jam_list_tail(cereal::BinaryOutputArchive& bout, SEXP x, Head& head) {
   uint N = LENGTH(x); // max list size is uint max element
   bout(N);
   if (N != 0) {
     switch (head.el_type) {
-     case JamElType::VECTOR:
+     case VECTOR:
        {
-         JamType common_head = get_head(VECTOR_ELT(x, 0));
+         Head common_head = get_head(VECTOR_ELT(x, 0));
          bout(common_head);
          for (uint i = 0; i < N; i++) {
            jam_sexp(bout, VECTOR_ELT(x, i), false, common_head);
          }
        }
        break;
-     case JamElType::MIXED:
+     case MIXED:
        for (size_t i = 0; i < N; i++) {
          jam_sexp(bout, VECTOR_ELT(x, i), true);
        }
@@ -142,7 +159,7 @@ void jam_list_tail(cereal::BinaryOutputArchive& bout, SEXP x, JamType& head) {
 }
 
 void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head) {
-  JamType head = get_head(x);
+  Head head = get_head(x);
   if (with_head && TYPEOF(x) == INTSXP) {
     // FIXME: ULISTs of int vectors don't use this optimization
     head.el_type = best_int_type(x);
@@ -150,13 +167,14 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head) {
   jam_sexp(bout, x, with_head, head);
 }
 
-void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType& head) {
+
+void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, Head& head) {
 #ifdef DEBUG
   head.print("jam_sexp:");
 #endif
   
   size_t N = XLENGTH(x);
-  JamElType::type jtype = head.el_type;
+  Type jtype = head.el_type;
 
   if (with_head) bout(head);
   if (head.hasMeta()) jam_meta(bout, x);
@@ -168,13 +186,13 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType
     
    case LGLSXP:
      switch (jtype) {
-      case JamElType::BOOL:
+      case BOOL:
         jam_bool_vector_tail(bout, LOGICAL(x), N);
         break;
-      case JamElType::BYTE:
+      case BYTE:
         jam_int_vector_tail<byte>(bout, LOGICAL(x), N, NA_BYTE);
         break;
-      case JamElType::UBYTE:
+      case UBYTE:
         jam_int_vector_tail<ubyte>(bout, LOGICAL(x), N, NA_UBYTE);
         break;
       default:
@@ -185,22 +203,22 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType
    case INTSXP:
 
      switch (jtype) {
-      case JamElType::BYTE:
+      case BYTE:
         jam_int_vector_tail<byte>(bout, INTEGER(x), N, NA_BYTE);
         break;
-      case JamElType::UBYTE:
+      case UBYTE:
         jam_int_vector_tail<ubyte>(bout, INTEGER(x), N, NA_UBYTE);
         break;
-      case JamElType::SHORT:
+      case SHORT:
         jam_int_vector_tail<short>(bout, INTEGER(x), N, NA_SHORT);
         break;
-      case JamElType::USHORT:
+      case USHORT:
         jam_int_vector_tail<ushort>(bout, INTEGER(x), N, NA_USHORT);
         break;
-      case JamElType::INT:
+      case INT:
         jam_vector_tail<int>(bout, INTEGER(x), N);
         break;
-      case JamElType::UINT:
+      case UINT:
         jam_int_vector_tail<uint>(bout, INTEGER(x), N, NA_UINT);
         break;
       default:
@@ -210,10 +228,10 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType
      
    case REALSXP:
      switch(jtype) {
-      case JamElType::FLOAT:
+      case FLOAT:
         jam_vector_tail<float>(bout, REAL(x), N);
         break;
-      case JamElType::DOUBLE:
+      case DOUBLE:
         jam_vector_tail<double>(bout, REAL(x), N);
         break;
       default:
@@ -223,10 +241,10 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, JamType
      
    case STRSXP:
      switch(jtype) {
-      case JamElType::UTF8:
+      case UTF8:
         jam_utf8_vector_tail(bout, x);
         break;
-      case JamElType::STRING:
+      case STRING:
         jam_string_vector_tail(bout, x);
         break;
       default:

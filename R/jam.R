@@ -19,7 +19,7 @@
 ##'   all.equal(iris, unjam("./data/iris.rjam"))
 ##' }
 jam <- function(obj, file = sprintf("./data/%s.rjam", deparse(substitute(obj)))){
-    file <- path.expand(file)
+    file <- normalizePath(file)
     dir <- dirname(file)
     if (dir.exists(dir))
         dir.create(dir, showWarnings = FALSE, recursive = TRUE)
@@ -30,7 +30,7 @@ jam <- function(obj, file = sprintf("./data/%s.rjam", deparse(substitute(obj))))
 ##' @rdname jam
 ##' @export
 unjam <- function(file){
-    file <- path.expand(file)
+    file <- normalizePath(file)
     if (!file.exists(file))
         stop(sprintf("Archive file '%s' does not exist.", file))
 

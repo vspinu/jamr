@@ -4,3 +4,15 @@ handling big data sets: https://www.r-bloggers.com/handling-large-datasets-in-r/
 arrow layout: https://github.com/apache/arrow/blob/master/format/Layout.md
 
  https://capnproto.org/index.html
+
+
+* cpp
+
+  
+// http://libcppa.blogspot.nl/2011/04/unrestricted-union.html
+// http://cpp11standard.blogspot.nl/2012/11/c11-standard-explained-1-unrestricted.html
+// https://github.com/benjibc/json-universal-container/blob/master/json.h
+// http://stackoverflow.com/a/28900190/453735
+// placement new with comments: http://stackoverflow.com/questions/222557/what-uses-are-there-for-placement-new
+// copy, move and distruction clean writeup: https://www.cs.umd.edu/class/spring2002/cmsc214/Projects/P1/copy-dest.html
+

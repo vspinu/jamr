@@ -17,9 +17,14 @@
 ##' 
 ##' @param obj Atomic vector or list, with or without attributes
 ##' @param file Archive file name.
-##' @param append If \code{TRUE} the data is appended to existing file. It's up
-##'     to the user to ensure that new data is compatible with the data from the
-##'     archive file. See also \code{\link{jar_csv}}.
+##' @param append If \code{TRUE} the data is appended to existing file resulting
+##'     in multi-chunk archive. No attributes are stored for appended chunks
+##'     which could result in wrong or even corrupted de-serialization of factor
+##'     levels. See also \code{\link{jar_csv}} for a common use case.
+##' @param rows_per_chunk If too small, serialization or deserialization will be
+##'     slower but can result in smaller archive sizes because type-size
+##'     optimization is performed on smaller chunks. Default is to write
+##'     everything in one chunk.
 ##' @export
 ##' @return \code{unjar} returns de-serialized \code{data.frame}; \code{jar}
 ##'     returns input object invisibly.
@@ -29,24 +34,24 @@
 ##'   jar(iris)
 ##'   all.equal(iris, unjar("./data/iris.rjar"))
 ##' }
-jar <- function(obj, file, append = FALSE) {
+jar <- function(obj, file, append = FALSE, rows_per_chunk = -1) {
     if (!inherits(obj, "data.frame"))
         stop("Only data.frames are supported; try 'jam'.")
-    file <- path.expand(file)
+    file <- normalizePath(file)
     dir <- dirname(file)
     if (dir.exists(dir))
         dir.create(dir, showWarnings = FALSE, recursive = TRUE)
-    c_jar(obj, file, append)
+    c_jar(obj, file, append, rows_per_chunk)
     invisible(obj)
 }
 
 ##' @rdname jar
 ##' @export
-unjar <- function(file){
-    file <- path.expand(file)
+unjar <- function(file, chunks = -1){
+    file <- normalizePath(file)
     if (!file.exists(file))
         stop(sprintf("Archive file '%s' does not exist.", file))
-    c_unjar(file)
+    c_unjar(file, chunks)
 }
 
 .check_df_struct <- function(df_ref, df) {
