@@ -142,4 +142,5 @@ void c_jar(SEXP x, const std::string& path, bool append, int rows_per_chunk) {
     PRINT("-- writing columns --\n");
     writer.write_columns(cols, rows_per_chunk);
   }
+
 }

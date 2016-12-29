@@ -42,7 +42,6 @@ SEXP VarColl2SEXP (const VarColl& vc) {
    default:
      stop("Unsuported coll type %s", Type2String(vc.coll_type));
   }
-
 }
 
 SEXP unjar_sexp(Reader& reader, int chunks) {
@@ -60,7 +59,7 @@ SEXP unjar_sexp(Reader& reader, int chunks) {
   // BUILD OUTPUT LIST
   List out(ncols);
 
-  for(size_t c = 0; c < ncols; c++) {
+  for (size_t c = 0; c < ncols; c++) {
     PRINT("assigning column %ld\n", c);
     SEXP col = PROTECT(VarColl2SEXP(cols[c]));
     strmap<VarColl> attr = reader.col_metas[c];
