@@ -121,28 +121,25 @@ void c_jar(SEXP x, const std::string& path, bool append, int rows_per_chunk) {
 
   } else {
 
-
     uint ncols = XLENGTH(x);
-    strmap<VarColl> meta = get_meta(x);
-    vector<strmap<VarColl>> col_metas(ncols);
 
+    PRINT("-- init writer --\n");
+    Writer writer(path, append);
+
+    writer.meta = get_meta(x);
+
+    vector<strmap<VarColl>> col_metas(ncols);
     for (size_t c = 0; c < ncols; c++){
       col_metas[c] = get_meta(VECTOR_ELT(x, c));
     }
-
-    PRINT("-- init writer --\n");
-    Writer writer(path, meta, col_metas);
-
-    PRINT("-- writing header --\n");
-    writer.write_header();
-
-    size_t nrows = XLENGTH(VECTOR_ELT(x, 0)); // no straightforward way to get nrows?
+    writer.col_metas = col_metas;
 
     vector<VarColl> cols;
     for (size_t c = 0; c < ncols; c++) {
       cols.push_back(SEXP2VarColl(VECTOR_ELT(x, c)));
     }
-    PRINT("-- cols writing --\n");
+    
+    PRINT("-- writing columns --\n");
     writer.write_columns(cols, rows_per_chunk);
   }
 }

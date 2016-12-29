@@ -135,7 +135,7 @@ SEXP unjam_sexp(cereal::BinaryInputArchive& bin, const Head& head) {
   // [META]
   SEXP meta = R_NilValue;
   int nprot = 0;
-  if (head.hasMeta()){
+  if (head.metabit()){
     meta = PROTECT(unjam_meta(bin));
     nprot++;
   }

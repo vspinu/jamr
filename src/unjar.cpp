@@ -45,22 +45,21 @@ SEXP VarColl2SEXP (const VarColl& vc) {
 
 }
 
-// [[Rcpp::export]]
-SEXP c_unjar(const std::string& path, int chunks) {
+SEXP unjar_sexp(Reader& reader, int chunks) {
 
-  Reader reader(path);
-  PRINT("-- fetch header --\n");
-  reader.fetch_header();
   PRINT("-- fetch columns --\n");
-  reader.fetch_columns(chunks);
-  
-  PRINT("-- get columns --\n");
-  vector<VarColl>& cols = reader.columns;
+  vector<VarColl>& cols = reader.read_columns(chunks);
+  PRINT("-- done --\n");
+
+  if (cols.size() == 0)
+    return R_NilValue;
 
   size_t ncols = reader.ncols();
   size_t nrows = reader.nrows();
 
+  // BUILD OUTPUT LIST
   List out(ncols);
+
   for(size_t c = 0; c < ncols; c++) {
     PRINT("assigning column %ld\n", c);
     SEXP col = PROTECT(VarColl2SEXP(cols[c]));
@@ -76,6 +75,7 @@ SEXP c_unjar(const std::string& path, int chunks) {
     UNPROTECT(1);
   }
 
+  // SET ATTRIBUTES
   for (const auto& kv : reader.meta) {
     if (kv.first != "row.names")
       out.attr(kv.first) = VarColl2SEXP(kv.second);
@@ -83,4 +83,30 @@ SEXP c_unjar(const std::string& path, int chunks) {
   out.attr("row.names") = IntegerVector::create(NA_INTEGER, -nrows);
   
   return out;
+}
+
+// [[Rcpp::export]]
+SEXP c_unjar_bind(const std::string& path, int chunks) {
+  Reader reader(path);
+  return unjar_sexp(reader, chunks);
+}
+
+// [[Rcpp::export]]
+SEXP c_unjar_nobind(const std::string& path, int chunks) {
+  Reader reader(path);
+
+  if (chunks <= 0)
+    chunks = MAX_INT;
+      
+  List out;
+
+  SEXP df = unjar_sexp(reader, 1);
+  size_t nchunk = 1;
+  while (df != R_NilValue && nchunk < chunks) {
+    out.push_back(df);
+    df = unjar_sexp(reader, 1);
+    nchunk++;
+  }
+
+  return out;  
 }

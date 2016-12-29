@@ -1,11 +1,11 @@
 #include "rutils.hpp"
 
 // LAYOUT:
-// HOBJ   =  HEAD OBJ                   : object with head
-// OBJ    = [VECTOR|MLIST|ULIST]        : supported object (no head)
-// VECTOR = [META] DATA                 :
-// MLIST  = [META] N HOBJ...            : mixed list
-// ULIST  = [META] N COMMON_HEAD OBJ... : uniform list
+// HOBJ   =  HEAD OBJ                   : object with head 
+// OBJ    =  VECTOR | MLIST | ULIST     : object (no head, aka tail object)
+// VECTOR = [META] DATA                 : vector type  VECTOR:eltype
+// MLIST  = [META] N HOBJ...            : mixed list   LIST:MIXED
+// ULIST  = [META] N COMMON_HEAD OBJ... : uniform list LIST:VECTOR
 // META   =  NAMES N HOBJ...            : meta (cannot hold meta itself)
 
 void jam_meta(cereal::BinaryOutputArchive& bout, SEXP x);
@@ -132,8 +132,6 @@ void jam_string_vector_tail(cereal::BinaryOutputArchive& bout, SEXP x) {
   bout(as<std::vector<std::string>>(x));
 }
 
-// ULIST: N|COMMON_HEAD|ELS_NO_HEAD...
-// MLIST: N|ELS_WITH_HEAD...
 void jam_list_tail(cereal::BinaryOutputArchive& bout, SEXP x, Head& head) {
   uint N = LENGTH(x); // max list size is uint max element
   bout(N);
@@ -177,7 +175,7 @@ void jam_sexp(cereal::BinaryOutputArchive& bout, SEXP x, bool with_head, Head& h
   Type jtype = head.el_type;
 
   if (with_head) bout(head);
-  if (head.hasMeta()) jam_meta(bout, x);
+  if (head.metabit()) jam_meta(bout, x);
  
   switch (TYPEOF(x)) {
 

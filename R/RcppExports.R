@@ -13,7 +13,11 @@ c_unjam <- function(path) {
     .Call('jamr_c_unjam', PACKAGE = 'jamr', path)
 }
 
-c_unjar <- function(path, chunks) {
-    .Call('jamr_c_unjar', PACKAGE = 'jamr', path, chunks)
+c_unjar_bind <- function(path, chunks) {
+    .Call('jamr_c_unjar_bind', PACKAGE = 'jamr', path, chunks)
+}
+
+c_unjar_nobind <- function(path, chunks) {
+    .Call('jamr_c_unjar_nobind', PACKAGE = 'jamr', path, chunks)
 }
 

@@ -8,16 +8,16 @@
 \title{Serialize csv, tsv and other delimited files.}
 \usage{
 jar_delim(in_file, out_file = paste0(in_file, ".rjar"), callback = NULL,
-  chunk_size = 10000, delim, ...)
+  chunk_size = 1e+06, delim, ...)
 
 jar_csv(in_file, out_file = paste0(in_file, ".rjar"), callback = NULL,
-  chunk_size = 10000, ...)
+  chunk_size = 1e+06, ...)
 
 jar_csv2(in_file, out_file = paste0(in_file, ".rjar"), callback = NULL,
-  chunk_size = 10000, ...)
+  chunk_size = 1e+06, ...)
 
 jar_tsv(in_file, out_file = paste0(in_file, ".rjar"), callback = NULL,
-  chunk_size = 10000, ...)
+  chunk_size = 1e+06, ...)
 }
 \arguments{
 \item{in_file}{Input delimited text file. Can be R connection or an archive

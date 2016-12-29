@@ -47,11 +47,14 @@ jar <- function(obj, file, append = FALSE, rows_per_chunk = -1) {
 
 ##' @rdname jar
 ##' @export
-unjar <- function(file, chunks = -1){
+unjar <- function(file, chunks = 0, bind = FALSE){
     file <- normalizePath(file)
     if (!file.exists(file))
         stop(sprintf("Archive file '%s' does not exist.", file))
-    c_unjar(file, chunks)
+    if (bind)
+        c_unjar_bind(file, chunks)
+    else
+        c_unjar_nobind(file, chunks)
 }
 
 .check_df_struct <- function(df_ref, df) {
@@ -94,8 +97,8 @@ unjar <- function(file, chunks = -1){
                                     private$first_chunk <- result
                                     jar(result, out_file)
                                 } else {
-                                    .check_df_struct(private$first_chunk, chunk)
-                                    jar(data, out_file, append = T)
+                                    .check_df_struct(private$first_chunk, result)
+                                    jar(result, out_file, append = T)
                                 }
                             }
                         })
@@ -125,7 +128,7 @@ unjar <- function(file, chunks = -1){
 ##' @param ... Other arguments passed directly to \code{read_delim}.
 ##' @export
 jar_delim <- function(in_file, out_file = paste0(in_file, ".rjar"),
-                      callback = NULL, chunk_size = 10000, delim, ...) {
+                      callback = NULL, chunk_size = 1e6, delim, ...) {
     r6cb <- .readr_callback(callback, out_file)
     readr::read_delim_chunked(file = in_file, callback = r6cb,
                               chunk_size = chunk_size, delim = delim, ...)
@@ -134,7 +137,7 @@ jar_delim <- function(in_file, out_file = paste0(in_file, ".rjar"),
 ##' @rdname jar_delim
 ##' @export
 jar_csv <- function(in_file, out_file = paste0(in_file, ".rjar"), 
-                    callback = NULL, chunk_size = 10000, ...) {
+                    callback = NULL, chunk_size = 1e6, ...) {
     r6cb <- .readr_callback(callback, out_file)
     readr::read_csv_chunked(file = in_file, callback = r6cb,
                             chunk_size = chunk_size, ...)
@@ -143,7 +146,7 @@ jar_csv <- function(in_file, out_file = paste0(in_file, ".rjar"),
 ##' @rdname jar_delim
 ##' @export
 jar_csv2 <- function(in_file, out_file = paste0(in_file, ".rjar"), 
-                     callback = NULL, chunk_size = 10000, ...) {
+                     callback = NULL, chunk_size = 1e6, ...) {
     r6cb <- .readr_callback(callback, out_file)
     readr::read_csv2_chunked(file = in_file, callback = r6cb,
                              chunk_size = chunk_size, ...)
@@ -152,7 +155,7 @@ jar_csv2 <- function(in_file, out_file = paste0(in_file, ".rjar"),
 ##' @rdname jar_delim
 ##' @export
 jar_tsv <- function(in_file, out_file = paste0(in_file, ".rjar"), 
-                    callback = NULL, chunk_size = 10000, ...) {
+                    callback = NULL, chunk_size = 1e6, ...) {
     r6cb <- .readr_callback(callback, out_file)
     readr::read_tsv_chunked(file = in_file, callback = r6cb,
                             chunk_size = chunk_size, ...)

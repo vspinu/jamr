@@ -1,7 +1,7 @@
 #ifndef __JAR_HPP__
 #define __JAR_HPP__
 
-#define DEBUG
+/* #define DEBUG */
 
 #ifdef DEBUG
 #define PRINT(...) printf(__VA_ARGS__)
@@ -10,6 +10,7 @@
 #endif
 
 // for tracing move & copy allocations
+
 /* #define DEBUGALOC */
 
 #ifdef DEBUGALOC
@@ -315,11 +316,11 @@ static T ve_get(const VarEl* ve) {
   throw JamException("Invalid type passed to get function");
 }
 
-#define VE_GET(T, VT, V) template<>                     \
-  T ve_get(const VarEl* ve) {                           \
-    if (ve->type == VT) return(ve->V);                  \
-    else throw_on_invalid_type(ve);                      \
-  }                                                     \
+#define VE_GET(T, VT, V) template<>             \
+  T ve_get(const VarEl* ve) {                   \
+    if (ve->type == VT) return(ve->V);          \
+    else throw_on_invalid_type(ve);             \
+  }                                             \
 
 VE_GET(bool, BOOL, bool_val)
 VE_GET(byte, BYTE, byte_val)
@@ -638,12 +639,12 @@ static inline T vc_get(const VarColl* vc) {
   throw JamException("Invalid type passed to get function");
 }
 
-#define VC_GET(T, CT, ET, V) template<>             \
-  T vc_get(const VarColl* vc) {                     \
-    if (vc->el_type == ET && vc->coll_type == CT)   \
-      return(vc->V);                                \
-    else throw_on_invalid_type(vc);                 \
-  }                                                 \
+#define VC_GET(T, CT, ET, V) template<>         \
+  T vc_get(const VarColl* vc) {                 \
+ if (vc->el_type == ET && vc->coll_type == CT)  \
+   return(vc->V);                               \
+ else throw_on_invalid_type(vc);                \
+  }                                             \
  
 VC_GET(int_vec,  VECTOR, INT,     int_vec_val)
 VC_GET(long_vec, VECTOR, LONG,    long_vec_val)
@@ -692,7 +693,13 @@ void VarColl::push_back(const T& val) {
 
 class Head {
 
+  ubyte version = 0;
+  ubyte extra = 0;
+
  public:
+
+  Type coll_type = UNDEFINED;
+  Type el_type = UNDEFINED;
 
   Head(){};
   Head(Type coll_type, Type el_type, bool has_meta = false) :
@@ -701,13 +708,22 @@ class Head {
     extra((has_meta ? 1 : 0))
   {};
 
-  bool hasMeta () const {
+  bool metabit () const {
     return extra & 1;
   }
 
-  void setMeta (const bool& has_meta) {
-    if (has_meta) extra |= 1;
+  void metabit (const bool bit) {
+    if (bit) extra |= 1;
     else extra &= ~(1);
+  }
+
+  bool contbit () const {
+    return extra & (1 << 4);
+  }
+
+  void contbit (const bool bit) {
+    if (bit) extra |= (1 << 4);
+    else extra &= ~(1 << 4);
   }
 
   void print () const {
@@ -718,7 +734,7 @@ class Head {
     std::cout << name
               << " coll_type:" << Type2String(coll_type)
               << " el_type:" << Type2String(el_type)
-              << " meta:" << (hasMeta() ? "true" : "false") << std::endl;
+              << " meta:" << (metabit() ? "true" : "false") << std::endl;
   }
   
   template<class Archive>
@@ -726,15 +742,11 @@ class Head {
   {
     archive(coll_type, el_type, version, extra);
   }
-
- public:
-  Type coll_type = UNDEFINED;
-  Type el_type = UNDEFINED;
-
- private:
-  ubyte version = 0;
-  ubyte extra = 0;
 };
+
+
+const Head JAM_META_HEAD = Head(jam::META, jam::MIXED, true);
+const Head JAM_NIL_HEAD = Head(jam::NIL, jam::UNDEFINED, false);
 
 
 /* ------------------------------------------------------ */
@@ -765,92 +777,6 @@ inline vector<Type> types_from_heads(vector<Head> heads) {
 
 
 /* ------------------------------------------------------ */
-/* WRITER                                                 */
-/* ------------------------------------------------------ */
-
-typedef cereal::BinaryOutputArchive BOUT;
-
-class Writer {
-  
-  std::ofstream ostream_;
-  BOUT bout_;
-
-
- public:
-
-  const Head head = Head(DF, MIXED, true);
-  strmap<VarColl> meta;
-  vector<strmap<VarColl>> col_metas;
-
-  // CONSTRUCTORS
-  
-  Writer(const string& path, strmap<VarColl> meta, size_t ncols) :
-    Writer(path, meta, vector<strmap<VarColl>>(ncols)) {}
-  
-  Writer(const string& path, strmap<VarColl> meta, vector<strmap<VarColl>> col_metas) :
-    ostream_(std::ofstream(path, std::ios::binary)),
-    bout_(ostream_),
-    meta(meta),
-    col_metas(col_metas)
-  {
-    if (meta.find("names") == meta.end()) {
-      throw std::invalid_argument("Meta must contain a vector of column names named 'names'");
-    }
-  };
-
-  // UTILS
-  
-  size_t ncols() {
-    return col_metas.size();
-  }
-  
-  // WRITERS
-    
-  void write_header () {
-    if (ncols() == 0)
-      throw JamException("Attempting to write a table with 0 columns");
-    bout_(head, meta, col_metas); 
-  }
-
-  void write_columns(const vector<VarColl>& cols, size_t rows_per_chunk = MAX_SIZE) {
-
-    if (rows_per_chunk < 0) rows_per_chunk = MAX_SIZE;
-
-    if (cols.size() != ncols())
-      throw JamException("Writer's number of columns (" + std::to_string(ncols()) + ") not equals number of supplied columns (" + std::to_string(cols.size()) + ")");
-    
-    size_t nrows =  cols[0].size();
-    for (const auto& c : cols) {
-      if (c.size() != nrows)
-        throw JamException("All columns must have same length");
-    }
-
-    size_t chunks = 0;
-
-    if (rows_per_chunk >= nrows) {
-      chunks++;
-      bout_(cols);
-    } else {
-      size_t first = 0, last = rows_per_chunk;
-      do {
-        vector<VarColl> subcols;
-        for (const auto& c : cols) {
-          subcols.push_back(c.subset(first, last));
-        }
-        bout_(subcols);
-        first = last;
-        last = std::min(last + rows_per_chunk, nrows);
-        chunks++;
-      } while (first < nrows);
-    }
-    
-    PRINT("wrote %ld chunks\n", chunks);
-  }  
-};
-
-
-
-/* ------------------------------------------------------ */
 /* READER                                                 */
 /* ------------------------------------------------------ */
 
@@ -859,18 +785,25 @@ typedef cereal::BinaryInputArchive BIN;
 class Reader {
 
   bool fetched_header_ = false;
+  bool fetched_base_header_ = false;
+  size_t nrows_;
+  
   std::ifstream istream;
   BIN bin_;
 
  public:
 
+  const string path;
   Head head; 
   strmap<VarColl> meta;
   vector<strmap<VarColl>> col_metas;
   vector<VarColl> columns;
 
-  Reader(const string& path) : istream(std::ifstream(path, std::ios::binary)), bin_(istream) {};
-  Reader(std::istream& istream) : bin_(istream) {};
+  Reader(const string& path) : path(path), istream(std::ifstream(path, std::ios::binary)), bin_(istream) {
+    // waf? this doesn't work.
+    istream.exceptions(std::ifstream::failbit|std::ifstream::badbit|std::ifstream::eofbit);
+  };
+  /* Reader(std::istream& istream) : path(""), bin_(istream) {}; */
 
   str_vec names() {
     if (!fetched_header_)
@@ -879,63 +812,108 @@ class Reader {
   }
 
   size_t ncols() const {
-    return columns.size();
+    return col_metas.size();
   }
 
   size_t nrows() const {
-    if (columns.size() == 0)
-      return 0;
-    else
-      return columns[0].size();
+    return nrows_;
   }
   
-  void fetch_header () {
+  Reader& fetch_header () {
     bin_(head);
     if (head.coll_type != DF)
       throw JamException("Can read only objects of type DF. Found " + Type2String(head.coll_type));
-    bin_(meta, col_metas);
+    if (head.contbit()) {
+      if (!fetched_base_header_)
+        throw JamException("Continuation header encountered, but no base header has been fetched yet");
+    } else {
+      bin_(meta, col_metas);
+      fetched_base_header_ = true;
+    }
     fetched_header_ = true;
+    return *this;
   }
 
-  vector<VarColl> read_columns(size_t nchunks = MAX_SIZE) {
+  // return empty vector if cannot read;
+  vector<VarColl>& read_columns(size_t nchunks = MAX_SIZE) {
 
-    if (nchunks < 0) nchunks = MAX_SIZE;
-        
-    PRINT("started reading\n");
-    vector<VarColl> cols; bin_(cols);
+    if (nchunks <= 0)
+      nchunks = MAX_SIZE;
+
+    try {
+
+      if (!fetched_header_)
+        fetch_header();
+      fetched_header_ = false;
+    
+      PRINT("started reading (nchunks %ld)\n", nchunks);
+      bin_(columns);
+      
+    } catch (std::exception&) {
+      columns = vector<VarColl>();
+      nrows_ = 0;
+      return columns;
+    }
     size_t chunks = 1; 
     
-    // cereal throws on end of input. Need to catch here. tothink: better way?
+    // cereal throws on end of input; need a double catch here
     bool keep_reading = true;
     while (keep_reading && chunks < nchunks) {
       try {
+        fetch_header();
+        if (!head.contbit()) {
+          // fixme: compatible chunks should be handled
+          throw JamException("Heterogeneous chunks cannot be bound at the moment. Try non binding option instead.");
+        }
         vector<VarColl> next; bin_(next);
         for (size_t c = 0; c < next.size(); c++) {
-          check_col_type(cols[c], next[c], c);
+          check_col_type(columns[c], next[c], c);
           switch (next[c].el_type) {
-           case INT:    cols[c].int_vec_val.insert(cols[c].int_vec_val.end(), next[c].int_vec_val.begin(), next[c].int_vec_val.end()); break;
-           case DOUBLE: cols[c].dbl_vec_val.insert(cols[c].dbl_vec_val.end(), next[c].dbl_vec_val.begin(), next[c].dbl_vec_val.end()); break;
-           case STRING: cols[c].str_vec_val.insert(cols[c].str_vec_val.end(), next[c].str_vec_val.begin(), next[c].str_vec_val.end()); break;
+           case INT:    columns[c].int_vec_val.insert(columns[c].int_vec_val.end(), next[c].int_vec_val.begin(), next[c].int_vec_val.end()); break;
+           case DOUBLE: columns[c].dbl_vec_val.insert(columns[c].dbl_vec_val.end(), next[c].dbl_vec_val.begin(), next[c].dbl_vec_val.end()); break;
+           case STRING: columns[c].str_vec_val.insert(columns[c].str_vec_val.end(), next[c].str_vec_val.begin(), next[c].str_vec_val.end()); break;
            default:
              throw JamException("Should never end up here; please report");
           }
         }
         chunks++;
-        // fixme: make it throw on eof: http://stackoverflow.com/a/11808139/453735
-      } catch (const std::exception& e) { keep_reading = false; };
+        // fixme: throwing on eof doesn't work for unclear reason: http://stackoverflow.com/a/11808139/453735
+        // } catch (std::ios_base::failure fail) { keep_reading = false; };
+      } catch (JamException& e) {
+        throw e;
+      } catch (std::exception& e) {
+        keep_reading = false;
+      };
     }
 
     PRINT("done reading %ld chunks\n", chunks);
-    return cols;
+    nrows_ = columns[0].size();
+    return columns;
   }
 
-  void fetch_columns(size_t nchunks = MAX_SIZE) {
-    columns = read_columns(nchunks);
+  vector<vector<VarColl>> read_columns_nobind(size_t nchunks = MAX_SIZE) {
+
+    vector<vector<VarColl>> out;
+    vector<VarColl> v;
+
+    size_t chunks = 0;
+    bool keep_reading = true;
+    
+    while (keep_reading && chunks < nchunks){
+      v = read_columns(1);
+      chunks++;
+      if (v.size() == 0)
+        keep_reading = false;
+      else
+        out.push_back(v);
+    }
+
+    return out;
   }
 
   vector<VarEl> read_line() {
     if (next_row_ >= nrows()) {
-      fetch_columns(1);
+      read_columns(1);
       next_row_ = 0;
       if (nrows()==0) throw JamException("0 rows fetched; aborting");
     }
@@ -961,7 +939,7 @@ class Reader {
   
   void check_col_type(const VarColl& old_col, const VarColl& new_col, size_t c) {
     if (old_col.el_type != new_col.el_type) {
-      throw JamException("Column " + std::to_string(c) + " type (" + Type2String(new_col.el_type) + ") doesn't match old type (" + Type2String(old_col.el_type) + "");
+      throw JamException("Column " + std::to_string(c) + " type (" + Type2String(new_col.el_type) + ") doesn't match old type (" + Type2String(old_col.el_type) + ")");
     }
   }
   /* // from http://stackoverflow.com/a/24868211/453735 */
@@ -969,10 +947,125 @@ class Reader {
   
 };
 
-// fixme: not a right place
-const Head JAM_META_HEAD = Head(jam::META, jam::MIXED, true);
-const Head JAM_NIL_HEAD = Head(jam::NIL, jam::UNDEFINED, false);
 
+
+/* ------------------------------------------------------ */
+/* WRITER                                                 */
+/* ------------------------------------------------------ */
+
+typedef cereal::BinaryOutputArchive BOUT;
+
+class Writer {
+  
+  std::ofstream ostream_;
+  BOUT bout_;
+
+ public:
+
+  string path;
+  const Head head = Head(DF, MIXED, true);
+  strmap<VarColl> meta;
+  vector<strmap<VarColl>> col_metas;
+
+  // CONSTRUCTORS
+  Writer(const string& path, bool append = false) :
+    Writer(path, strmap<VarColl>(), vector<strmap<VarColl>>(), append) {}
+  
+  Writer(const string& path, strmap<VarColl> meta, size_t ncols) :
+    Writer(path, meta, vector<strmap<VarColl>>(ncols)) {}
+
+  Writer(const Reader& reader) :
+    Writer(reader.path, reader.meta, reader.col_metas) {}
+
+  Writer(const string& path, strmap<VarColl> meta, vector<strmap<VarColl>> col_metas, bool append = false) :
+    path(path),
+    ostream_(std::ofstream(path, append ? (std::ios::binary | std::ios::app) : std::ios::binary)),
+    bout_(ostream_),
+    meta(meta),
+    col_metas(col_metas){};
+
+  // UTILS
+  
+  size_t ncols() {
+    return col_metas.size();
+  }
+
+  Writer& fetch_header() {
+    if (path == "")
+      throw JamException("Path wasn't initialized");
+    return fetch_header(path);
+  }
+  
+  Writer& fetch_header(string path) {
+    Reader reader(path);
+    PRINT("fetching header from '%s' ...\n", path.c_str());
+    reader.fetch_header();
+    PRINT("done ...\n");
+    meta = reader.meta;
+    col_metas = reader.col_metas;
+    PRINT("meta size: %ld", meta.size());
+    return *this;
+  }
+  
+  // WRITERS
+    
+  Writer& write_header (bool continuation = false) {
+    if (ncols() == 0)
+      throw JamException("Attempting to write a table with 0 columns");
+    if (continuation) {
+      Head cont_head(head);
+      cont_head.contbit(true);
+      bout_(cont_head);
+    } else {
+      bout_(head);
+      bout_(meta, col_metas);
+    }
+    return *this;
+  }
+
+  Writer& write_columns(const vector<VarColl>& cols, size_t rows_per_chunk = MAX_SIZE, bool continuation = false) {
+
+    if (meta.find("names") == meta.end()) {
+      throw std::invalid_argument("Meta must contain a vector of column names named 'names'");
+    }
+    
+    if (cols.size() != ncols())
+      throw JamException("Writer's number of columns (" + std::to_string(ncols()) + ") not equals number of supplied columns (" + std::to_string(cols.size()) + ")");
+    
+    size_t nrows =  cols[0].size();
+    for (const auto& c : cols) {
+      if (c.size() != nrows)
+        throw JamException("All columns must have same length");
+    }
+
+    size_t chunks = 0;
+
+    write_header(continuation);
+
+    if (rows_per_chunk >= nrows) {
+      bout_(cols);
+      chunks++;
+    } else {
+      size_t first = 0, last = rows_per_chunk;
+      do {
+        if (chunks > 0)
+          write_header(true);
+        vector<VarColl> subcols;
+        for (const auto& c : cols) {
+          subcols.push_back(c.subset(first, last));
+        }
+        bout_(subcols);
+        first = last;
+        last = std::min(last + rows_per_chunk, nrows);
+        chunks++;
+      } while (first < nrows);
+    }
+    
+    PRINT("wrote %ld chunks\n", chunks);
+    return *this;
+  }
+  
+};
 }
 
 #endif

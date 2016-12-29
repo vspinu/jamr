@@ -40,15 +40,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// c_unjar
-SEXP c_unjar(const std::string& path, int chunks);
-RcppExport SEXP jamr_c_unjar(SEXP pathSEXP, SEXP chunksSEXP) {
+// c_unjar_bind
+SEXP c_unjar_bind(const std::string& path, int chunks);
+RcppExport SEXP jamr_c_unjar_bind(SEXP pathSEXP, SEXP chunksSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const std::string& >::type path(pathSEXP);
     Rcpp::traits::input_parameter< int >::type chunks(chunksSEXP);
-    rcpp_result_gen = Rcpp::wrap(c_unjar(path, chunks));
+    rcpp_result_gen = Rcpp::wrap(c_unjar_bind(path, chunks));
+    return rcpp_result_gen;
+END_RCPP
+}
+// c_unjar_nobind
+SEXP c_unjar_nobind(const std::string& path, int chunks);
+RcppExport SEXP jamr_c_unjar_nobind(SEXP pathSEXP, SEXP chunksSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type path(pathSEXP);
+    Rcpp::traits::input_parameter< int >::type chunks(chunksSEXP);
+    rcpp_result_gen = Rcpp::wrap(c_unjar_nobind(path, chunks));
     return rcpp_result_gen;
 END_RCPP
 }
