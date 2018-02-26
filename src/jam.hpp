@@ -154,8 +154,9 @@ inline std::string Type2String(Type t) {
 
    case UNSUPORTED: return "UNSUPORTED";
    case UNDEFINED:  return "UNDEFINED";
+   default:
+     return "INVALID(" + std::to_string((int) t) + ")";
   }
-  return "INVALID(" + std::to_string((int) t) + ")";
 }
 
 static inline void throw_on_invalid_type (const Type& type) {
@@ -230,7 +231,7 @@ struct VarEl {
   // DESTRUCTOR
   ~VarEl() { if (type == STRING) string_val.~string(); }
 
-  template<class T> T get();
+  template<class T> T get() const;
 
   // conversions
   explicit operator byte()   const { return coerce_numeric<byte>(); }
@@ -294,6 +295,8 @@ struct VarEl {
      case FLOAT:  float_val  = rhs.float_val;
      case STRING: new (&string_val) string(rhs.string_val); break;
      case NIL:    nil_val    = NILVAL; break;
+     default:
+       throw JamException("Invalid VarEl type " + Type2String(type));
     }
   }
 
@@ -312,14 +315,14 @@ static inline void throw_on_invalid_type (const VarEl* vel) {
 }
 
 template<class T>
-static T ve_get(const VarEl* ve) {
+static inline T ve_get(const VarEl* ve) {
   throw JamException("Invalid type passed to get function");
 }
 
 #define VE_GET(T, VT, V) template<>             \
-  T ve_get(const VarEl* ve) {                   \
-    if (ve->type == VT) return(ve->V);          \
-    else throw_on_invalid_type(ve);             \
+  inline T VarEl::get() const {                 \
+    if (type == VT) return(V);                  \
+    else throw_on_invalid_type(this);           \
   }                                             \
 
 VE_GET(bool, BOOL, bool_val)
@@ -335,10 +338,10 @@ VE_GET(float, FLOAT, float_val)
 VE_GET(double, DOUBLE, double_val)
 VE_GET(string, STRING, string_val)
 
-template<class T>
-T VarEl::get() {
-  return ve_get<T>(this);
-}
+/* template<class T> */
+/* T VarEl::get() const { */
+/*   return ve_get<T>(this); */
+/* } */
 
 
 /* ------------------------------------------------------ */
@@ -347,8 +350,8 @@ T VarEl::get() {
 
 struct VarColl {
 
-  Type el_type;
   Type coll_type;
+  Type el_type;
 
   union {
     byte nil_val;
@@ -375,17 +378,17 @@ struct VarColl {
   
   // COPY CONSTRUCTORS
 
-  VarColl(const int_vec& val)    : el_type(INT),    coll_type(VECTOR), int_vec_val(val) {
+  VarColl(const int_vec& val) : coll_type(VECTOR), el_type(INT), int_vec_val(val) {
     PRINTALOC("copy (int)\n");
   }
   
-  VarColl(const int_map& val)  : el_type(INT),    coll_type(MAP), int_map_val(val) {}
-  VarColl(const long_vec& val) : el_type(LONG),   coll_type(VECTOR), long_vec_val(val) {}
-  VarColl(const long_map& val) : el_type(LONG),   coll_type(MAP), long_map_val(val) {}
-  VarColl(const dbl_vec& val)  : el_type(DOUBLE), coll_type(VECTOR), dbl_vec_val(val) {}
-  VarColl(const dbl_map& val)  : el_type(DOUBLE), coll_type(MAP), dbl_map_val(val) {}
-  VarColl(const str_vec& val)  : el_type(STRING), coll_type(VECTOR), str_vec_val(val) {};
-  VarColl(const str_map& val)  : el_type(STRING), coll_type(MAP), str_map_val(val) {};
+  VarColl(const int_map& val)  : coll_type(MAP),    el_type(INT), int_map_val(val) {}
+  VarColl(const long_vec& val) : coll_type(VECTOR), el_type(LONG), long_vec_val(val) {}
+  VarColl(const long_map& val) : coll_type(MAP),    el_type(LONG), long_map_val(val) {}
+  VarColl(const dbl_vec& val)  : coll_type(VECTOR), el_type(DOUBLE), dbl_vec_val(val) {}
+  VarColl(const dbl_map& val)  : coll_type(MAP),    el_type(DOUBLE), dbl_map_val(val) {}
+  VarColl(const str_vec& val)  : coll_type(VECTOR), el_type(STRING), str_vec_val(val) {};
+  VarColl(const str_map& val)  : coll_type(MAP),    el_type(STRING), str_map_val(val) {};
 
   VarColl(const VarColl& rhs) {
     PRINTALOC("copy (VarColl)\n");
@@ -394,16 +397,16 @@ struct VarColl {
   
   // MOVE CONSTRUCTORS
 
-  VarColl(int_vec&& val)  : el_type(INT),    coll_type(VECTOR), int_vec_val(std::move(val)) {
+  VarColl(int_vec&& val)  : coll_type(VECTOR), el_type(INT),    int_vec_val(std::move(val)) {
     PRINTALOC("move (int)\n");
   }
-  VarColl(int_map&& val)  : el_type(INT),    coll_type(MAP),    int_map_val(std::move(val)) {}
-  VarColl(long_vec&& val) : el_type(LONG),   coll_type(VECTOR), long_vec_val(std::move(val)) {}
-  VarColl(long_map&& val) : el_type(LONG),   coll_type(MAP),    long_map_val(std::move(val)) {}
-  VarColl(dbl_vec&& val)  : el_type(DOUBLE), coll_type(VECTOR), dbl_vec_val(std::move(val)) {}
-  VarColl(dbl_map&& val)  : el_type(DOUBLE), coll_type(MAP),    dbl_map_val(std::move(val)) {}
-  VarColl(str_vec&& val)  : el_type(STRING), coll_type(VECTOR), str_vec_val(std::move(val)) {};
-  VarColl(str_map&& val)  : el_type(STRING), coll_type(MAP),    str_map_val(std::move(val)) {};
+  VarColl(int_map&& val)  : coll_type(MAP),    el_type(INT),    int_map_val(std::move(val)) {}
+  VarColl(long_vec&& val) : coll_type(VECTOR), el_type(LONG),   long_vec_val(std::move(val)) {}
+  VarColl(long_map&& val) : coll_type(MAP),    el_type(LONG),   long_map_val(std::move(val)) {}
+  VarColl(dbl_vec&& val)  : coll_type(VECTOR), el_type(DOUBLE), dbl_vec_val(std::move(val)) {}
+  VarColl(dbl_map&& val)  : coll_type(MAP),    el_type(DOUBLE), dbl_map_val(std::move(val)) {}
+  VarColl(str_vec&& val)  : coll_type(VECTOR), el_type(STRING), str_vec_val(std::move(val)) {};
+  VarColl(str_map&& val)  : coll_type(MAP),    el_type(STRING), str_map_val(std::move(val)) {};
 
   VarColl(VarColl&& rhs) {
     PRINTALOC("move (VarColl)\n");
@@ -455,7 +458,7 @@ struct VarColl {
   }
 
   // TEMPLATED UTILS
-  template<class T> T get();
+  template<class T> T& get();
   template<class T> void push_back(const T& val);
 
   // ARCHIVE
@@ -631,20 +634,19 @@ static inline void throw_on_invalid_type (const VarColl* vc, const string& type 
                      Type2String(vc->coll_type) + " of type " + Type2String(vc->el_type));
 }
 
-
 //// GET
 
 template<class T>
-static inline T vc_get(const VarColl* vc) {
+static inline T vc_get(VarColl* vc) {
   throw JamException("Invalid type passed to get function");
 }
 
-#define VC_GET(T, CT, ET, V) template<>         \
-  T vc_get(const VarColl* vc) {                 \
- if (vc->el_type == ET && vc->coll_type == CT)  \
-   return(vc->V);                               \
- else throw_on_invalid_type(vc);                \
-  }                                             \
+#define VC_GET(T, CT, ET, V) template<>             \
+  inline T& VarColl::get() {                        \
+    if (el_type == ET && coll_type == CT)           \
+      return(V);                                    \
+    else throw_on_invalid_type(this, "get");        \
+  }                                                 \
  
 VC_GET(int_vec,  VECTOR, INT,     int_vec_val)
 VC_GET(long_vec, VECTOR, LONG,    long_vec_val)
@@ -655,10 +657,10 @@ VC_GET(long_map, MAP,    LONG,    long_map_val)
 VC_GET(dbl_map,  MAP,    DOUBLE,  dbl_map_val)
 VC_GET(str_map,  MAP,    STRING,  str_map_val)
 
-template<class T>
-T VarColl::get() {
-  return vc_get<T>(this);
-}
+/* template<class T> */
+/* T& VarColl::get() { */
+/*   return vc_get<T>(this); */
+/* } */
 
 
 //// PUSH BACK
@@ -669,11 +671,11 @@ static inline void vc_push_back(VarColl* vc, const T& val) {
 }
 
 #define VC_PUSH_BACK(T, ET, V) template<>               \
-  void vc_push_back(VarColl* vc, const T& val) {        \
-    if (vc->el_type == ET && vc->coll_type == VECTOR)   \
-      vc->V.push_back(val);                             \
+  inline void VarColl::push_back(const T& val) {        \
+    if (el_type == ET && coll_type == VECTOR)           \
+      V.push_back(val);                                 \
     else                                                \
-      throw_on_invalid_type(vc, "push_back");           \
+      throw_on_invalid_type(this, "push_back");         \
   }                                                     \
 
 VC_PUSH_BACK(int,     INT,     int_vec_val)
@@ -682,7 +684,7 @@ VC_PUSH_BACK(double,  DOUBLE,  dbl_vec_val)
 VC_PUSH_BACK(string,  STRING,  str_vec_val)
 
 template<class T>
-void VarColl::push_back(const T& val) {
+inline void VarColl::push_back(const T& val) {
   return vc_push_back(this, val);
 }
 
@@ -806,17 +808,33 @@ class Reader {
   /* Reader(std::istream& istream) : path(""), bin_(istream) {}; */
 
   str_vec names() {
-    if (!fetched_header_)
+    if (!fetched_base_header_)
       throw JamException("Header hasn't been fetched yet");
     return meta["names"].get<str_vec>();
   }
-
+  
   size_t ncols() const {
     return col_metas.size();
   }
 
   size_t nrows() const {
     return nrows_;
+  }
+
+  vector<Type> coll_types() {
+    vector<Type> out;
+    for (const auto& c : columns) {
+      out.push_back(c.coll_type);
+    }
+    return out;
+  }
+
+  vector<Type> el_types() {
+    vector<Type> out;
+    for (const auto& c : columns) {
+      out.push_back(c.el_type);
+    }
+    return out;
   }
   
   Reader& fetch_header () {
@@ -839,6 +857,8 @@ class Reader {
 
     if (nchunks <= 0)
       nchunks = MAX_SIZE;
+
+    columns = vector<VarColl>();
 
     try {
 

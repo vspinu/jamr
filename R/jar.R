@@ -47,7 +47,7 @@ jar <- function(obj, file, append = FALSE, rows_per_chunk = -1) {
 
 ##' @rdname jar
 ##' @export
-unjar <- function(file, chunks = 0, bind = FALSE){
+unjar <- function(file, chunks = 0, bind = TRUE){
     file <- normalizePath(file)
     if (!file.exists(file))
         stop(sprintf("Archive file '%s' does not exist.", file))

@@ -7,7 +7,7 @@
 \usage{
 jar(obj, file, append = FALSE, rows_per_chunk = -1)
 
-unjar(file, chunks = 0, bind = FALSE)
+unjar(file, chunks = 0, bind = TRUE)
 }
 \arguments{
 \item{obj}{Atomic vector or list, with or without attributes}
